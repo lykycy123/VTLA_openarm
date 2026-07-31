@@ -1,0 +1,6 @@
+[submodule "XRoboToolkit-PC-Service-Pybind"]
+	path = XRoboToolkit-PC-Service-Pybind
+	url = https://github.com/XR-Robotics/XRoboToolkit-PC-Service-Pybind.git
+[submodule "XRoboToolkit-Teleop-Sample-Python"]
+	path = XRoboToolkit-Teleop-Sample-Python
+	url = https://github.com/XR-Robotics/XRoboToolkit-Teleop-Sample-Python.git

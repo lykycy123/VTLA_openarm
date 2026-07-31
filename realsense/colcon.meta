@@ -1,0 +1,19 @@
+{
+  "names": {
+    "realsense2_camera": {
+      "cmake-args": [
+        "-DPython3_EXECUTABLE=/usr/bin/python3"
+      ]
+    },
+    "realsense2_camera_msgs": {
+      "cmake-args": [
+        "-DPython3_EXECUTABLE=/usr/bin/python3"
+      ]
+    },
+    "realsense2_description": {
+      "cmake-args": [
+        "-DPython3_EXECUTABLE=/usr/bin/python3"
+      ]
+    }
+  }
+}

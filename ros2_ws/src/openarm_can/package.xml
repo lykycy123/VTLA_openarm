@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>openarm_can</name>
+  <version>1.1.0</version>
+  <description>C++ library for CAN communication with OpenArm robotic hardware.</description>
+  <maintainer email="openarm_dev@enactic.ai">Enactic, Inc.</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>cmake</buildtool_depend>
+
+  <export>
+    <build_type>cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,46 @@
+# ROS 2 / colcon build products
+**/build/
+**/install/
+**/log/
+
+# Python environments and caches
+pico_vr_env/
+.venv/
+venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# CMake and compiler products
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+*.o
+*.a
+
+# Runtime data and recordings
+*.bag
+*.db3
+*.mcap
+*.hdf5
+*.log
+*.deb
+*.tar.gz
+*.tgz
+*.zip
+
+# IDE and OS files
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
