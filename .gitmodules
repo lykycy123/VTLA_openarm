@@ -1,6 +1,15 @@
 [submodule "XRoboToolkit-PC-Service-Pybind"]
-	path = XRoboToolkit-PC-Service-Pybind
+	path = third_party/XRoboToolkit-PC-Service-Pybind
 	url = https://github.com/XR-Robotics/XRoboToolkit-PC-Service-Pybind.git
 [submodule "XRoboToolkit-Teleop-Sample-Python"]
-	path = XRoboToolkit-Teleop-Sample-Python
+	path = third_party/XRoboToolkit-Teleop-Sample-Python
 	url = https://github.com/XR-Robotics/XRoboToolkit-Teleop-Sample-Python.git
+[submodule "python-can-agx-cando"]
+	path = third_party/python-can-agx-cando
+	url = https://github.com/agilexrobotics/python-can-agx-cando.git
+[submodule "ranger_ros2"]
+	path = openarm_ws/src/chassis/ranger_ros2
+	url = https://github.com/agilexrobotics/ranger_ros2.git
+[submodule "ugv_sdk"]
+	path = openarm_ws/src/chassis/ugv_sdk
+	url = https://github.com/agilexrobotics/ugv_sdk.git

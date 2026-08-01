@@ -1,0 +1,44 @@
+paths:
+  datasets_dir: datasets
+
+topics:
+  joint_states: /joint_states
+  odom: /odom
+  cmd_vel: /cmd_vel
+  left_arm_cmd: /left_forward_position_controller/commands
+  right_arm_cmd: /right_forward_position_controller/commands
+  left_gripper_action: left_gripper_controller/gripper_cmd
+  right_gripper_action: right_gripper_controller/gripper_cmd
+  left_ee_frame: openarm_left_hand_tcp
+  right_ee_frame: openarm_right_hand_tcp
+  world_frame: world
+
+camera:
+  head_topic: /camera/camera_h/color/image_rect_raw/compressed
+  left_topic: /camera/camera_l/color/image_rect_raw/compressed
+  right_topic: /camera/camera_r/color/image_rect_raw/compressed
+
+collection:
+  control_hz: 30.0
+  queue_size: 10
+  sync_slop: 0.05
+  jpeg_quality: 80
+
+replay:
+  # dataset: datasets/episode_0.hdf5   # 留空则自动选 datasets 下最新 episode_*.hdf5
+  demo_index: 0
+  control_hz: 50.0
+  fallback_hz: 30.0
+  speed: 1.0
+  stop_every_actions: 0
+  stop_time: 0.5
+  transition_duration: 1.0
+  loop: false
+  home_wait: 2.5
+  home_after_finish: true
+  home_on_shutdown: true
+  skip_home: false
+  replay_base: true
+  # 与 VR 底盘限速一致
+  max_linear_speed: 0.1
+  max_angular_speed: 0.2

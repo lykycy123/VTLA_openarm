@@ -4,6 +4,8 @@
 **/log/
 
 # Python environments and caches
+openarm_env/
+# Legacy local environment; new setups use openarm
 pico_vr_env/
 .venv/
 venv/
@@ -23,11 +25,13 @@ compile_commands.json
 *.a
 
 # Runtime data and recordings
+datasets/
 *.bag
 *.db3
 *.mcap
 *.hdf5
 *.log
+*.apk
 *.deb
 *.tar.gz
 *.tgz

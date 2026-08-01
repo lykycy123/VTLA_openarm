@@ -1,0 +1,5 @@
+base_controller:
+  ros__parameters:
+    linear_speed: 0.1
+    angular_speed: 0.2
+    deadzone: 0.1

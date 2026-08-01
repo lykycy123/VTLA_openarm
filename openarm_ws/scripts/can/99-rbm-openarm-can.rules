@@ -1,0 +1,19 @@
+# RBM OpenArm persistent SocketCAN names
+#
+# OpenArm PEAK USB Pro FD (peak_usb):
+#   channel 0 -> can0 (right arm)
+#   channel 1 -> can1 (left arm)
+# Chassis USB-CAN (gs_usb):
+#   -> can2
+#
+# Install:
+#   sudo ./openarm_ws/scripts/can/install_can_bindings.sh
+
+# OpenArm right arm
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="peak_usb", ATTR{dev_id}=="0x0", NAME="can0"
+
+# OpenArm left arm
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="peak_usb", ATTR{dev_id}=="0x1", NAME="can1"
+
+# Ranger chassis USB-CAN
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="gs_usb", NAME="can2"
