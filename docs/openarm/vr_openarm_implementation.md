@@ -11,10 +11,8 @@
 **解决**：将 openarm 改为 Python 3.10：
 ```bash
 conda install -n openarm python=3.10
-# 然后重跑 XRoboToolkit 的 setup_conda.sh --install
+# 然后按 README §3.2 安装 xrobotoolkit_sdk + placo（勿用 setup_conda.sh --install）
 ```
-
-xrobotoolkit_teleop 的 `requires-python` 为 `>=3.10`，无组件要求 3.13。
 
 ---
 

@@ -105,12 +105,10 @@ fi
 echo "[INFO] Python: $_PYTHON"
 if ! "$_PYTHON" -c "import xrobotoolkit_sdk, placo" 2>/dev/null; then
   echo "[ERROR] 当前 Python 缺少 xrobotoolkit_sdk 或 placo。"
-  echo "  请在 openarm 环境中安装 VR 依赖："
+  echo "  请在 openarm 环境中安装 VR 依赖（勿用 setup_conda.sh --install，会拉 torch/CUDA）："
   echo "    conda activate openarm"
-  echo "    cd ~/RBM_openarm/third_party/XRoboToolkit-Teleop-Sample-Python"
-  echo "    bash setup_conda.sh --install"
-  echo "  或仅安装 SDK："
-  echo "    cd ~/RBM_openarm/third_party/XRoboToolkit-PC-Service-Pybind && pip install ."
+  echo "    cd ~/RBM_openarm/third_party/XRoboToolkit-PC-Service-Pybind"
+  echo "    bash setup_ubuntu.sh"
   echo "    pip install placo"
   exit 1
 fi
@@ -149,7 +147,7 @@ echo ""
 echo "[INFO] 启动 bringup (use_fake_hardware=$_FAKE_ARG, bimanual=$BIMANUAL)..."
 source /opt/ros/humble/setup.bash 2>/dev/null || true
 source "$_INSTALL/setup.bash"
-# RViz 改由菜单 8（相机）统一打开，避免与三相机窗口重复
+# RViz 改由菜单 9（相机）统一打开，避免与三相机窗口重复
 if $BIMANUAL; then
   ros2 launch openarm_bringup openarm.bimanual.launch.py \
     arm_type:=v10 use_fake_hardware:=$_FAKE_ARG \
@@ -163,7 +161,7 @@ _BRINGUP_PID=$!
 
 sleep 5
 
-# 2. xr_bridge（可选；菜单 5/7 共用外部 bridge，避免重复 init SDK）
+# 2. xr_bridge（可选；菜单 5/8 共用外部 bridge，避免重复 init SDK）
 if $START_XR_BRIDGE; then
   echo "[INFO] 启动 xr_bridge..."
   (

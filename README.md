@@ -1,5 +1,13 @@
 # RBM OpenArm
 
+## Demo
+
+<p align="center">
+  <video src="demo.mp4" width="420" controls playsinline></video>
+</p>
+
+<p align="center"><a href="demo.mp4">demo.mp4</a>（仓库根目录）</p>
+
 基于 Ubuntu 22.04 / ROS 2 Humble 的移动双臂机器人工程，集成：
 
 - OpenArm V10 双臂、夹爪、ros2_control、MoveIt 2
@@ -10,57 +18,174 @@
 
 > **安全**：首次启动真机前请释放急停、架空底盘、清空机械臂工作空间，并准备随时断电。在 CAN 接口、机械零位和电机 ID 未确认前，不要启动真实硬件。
 
-日常推荐入口：[`openarm_ws/scripts/control_menu.sh`](openarm_ws/scripts/control_menu.sh)（一键流程 11–14）。
+日常推荐入口：先 [§1](#1-仿真--真机运行前联机-pc-service-与-pico) 联机 PC Service / PICO，再 [§2 快捷启动](#2-快捷启动控制菜单) — [`control_menu.sh`](openarm_ws/scripts/control_menu.sh)（11–14）。环境搭建见 [§3](#3-系统要求) 起。
 
 ---
 
 ## 目录
 
-1. [系统要求](#1-系统要求)
-2. [获取代码](#2-获取代码)
-3. [Conda 环境](#3-conda-环境)
-4. [构建与加载环境](#4-构建与加载环境)
-5. [控制菜单（推荐）](#5-控制菜单推荐)
-6. [CAN 接口](#6-can-接口)
-7. [OpenArm 双机械臂](#7-openarm-双机械臂)
-8. [Ranger Mini 3.0 底盘](#8-ranger-mini-30-底盘)
-9. [RealSense 三相机](#9-realsense-三相机)
-10. [VR 遥操作](#10-vr-遥操作)
-11. [HDF5 数据采集与回放](#11-hdf5-数据采集与回放)
-12. [命令行全栈启动](#12-命令行全栈启动)
-13. [常见问题](#13-常见问题)
-14. [参考资料](#14-参考资料)
+1. [仿真 / 真机运行前：联机 PC Service 与 PICO](#1-仿真--真机运行前联机-pc-service-与-pico)
+2. [快捷启动（控制菜单）](#2-快捷启动控制菜单)
+3. [系统要求](#3-系统要求)
+4. [获取代码](#4-获取代码)
+5. [Conda 与 VR 运行时](#5-conda-与-vr-运行时)
+6. [构建与加载环境](#6-构建与加载环境)
+7. [CAN 接口](#7-can-接口)
+8. [OpenArm 双机械臂](#8-openarm-双机械臂)
+9. [Ranger Mini 3.0 底盘](#9-ranger-mini-30-底盘)
+10. [RealSense 三相机](#10-realsense-三相机)
+11. [VR 遥操作](#11-vr-遥操作)
+12. [HDF5 数据采集与回放](#12-hdf5-数据采集与回放)
+13. [命令行全栈启动](#13-命令行全栈启动)
+14. [常见问题](#14-常见问题)
+15. [参考资料](#15-参考资料)
 
 ---
 
-## 1. 系统要求
+## 1. 仿真 / 真机运行前：联机 PC Service 与 PICO
 
-- Ubuntu 22.04
-- ROS 2 Humble
-- Python 3.10
-- Miniconda / Anaconda（VR 与采集脚本）
-- `can-utils`、SocketCAN 兼容适配器
-- XRoboToolkit PC Service（仅 VR）
+做 VR 相关快捷启动（菜单 **5 / 8 / 12 / 13**）前，先完成本节。仅机械臂假硬件、底盘键盘、相机可视化时可跳过。
 
-基础依赖：
+1. **同网**：机器人 PC 与 PICO 4 Ultra 连同一局域网（Wi‑Fi / 有线均可）。
+2. **PC 端启动 XRoboToolkit PC Service**（需已按 [§5.1](#51-安装-xrobotoolkit-pc-service-deb) 安装 deb）：
+   - 双击桌面 / 应用菜单中的 `XRoboToolkit-PC-Service`，或执行：
+
+```bash
+bash /opt/apps/roboticsservice/runService.sh
+```
+
+成功后会弹出服务窗口，例如：
+
+![XRoboToolkit PC Service 窗口](docs/images/xrobotoolkit-pc-service-window.png)
+
+3. **头显端**：在 PICO 上打开 App `XRoboToolkit`（APK 安装见 [§5.4](#54-安装-pico-头显-apk)）。PC Service 与头显联机成功后，服务窗口侧通常会显示已连接设备，例如：
+
+![PC Service 与 PICO 联机](docs/images/xrobotoolkit-pico-connected.png)
+
+Unity 客户端说明见 [XRoboToolkit-Unity-Client](https://github.com/XR-Robotics/XRoboToolkit-Unity-Client)。
+
+4. **再启本仓库遥操作**：联机正常后，用 [§2 快捷启动](#2-快捷启动控制菜单)（如菜单 **12** 全身 VR，或 **5 + 8**）。本工程请走 `control_menu.sh` / `launch_vr_teleop.sh`，不必再跟上游 [XRoboToolkit-Teleop-Sample-Python](https://github.com/XR-Robotics/XRoboToolkit-Teleop-Sample-Python) 的示例脚本。
+
+---
+
+## 2. 快捷启动（控制菜单）
+
+环境已按后文搭好后，日常直接用控制菜单启动（需图形桌面终端）。未构建时请先完成 [§3](#3-系统要求)–[§6](#6-构建与加载环境)。VR 相关请先完成 [§1](#1-仿真--真机运行前联机-pc-service-与-pico)。
+
+```bash
+cd ~/RBM_openarm
+./openarm_ws/scripts/control_menu.sh
+```
+
+菜单示例：
+
+```text
+==========================================
+          RBM OpenArm 控制菜单
+==========================================
+【快速启动】
+ 11. 首次启动
+ 12. 全身 VR 遥操作
+ 13. 数据采集
+ 14. 数据回放
+
+【分布步骤】
+  1. 安装 CAN 绑定（仅首次）
+  2. 启动全部 CAN（can0/can1/can2）
+  3. 启动 OpenArm 驱动
+  4. 启动 OpenArm MoveIt 控制（需先启动 3）
+  5. 启动 OpenArm VR 遥操作（与 4 冲突）
+  6. 启动底盘控制
+  7. 启动底盘键盘控制（需先启动 6）
+  8. 启动底盘 VR 遥操作
+  9. 启动 camera+rviz 可视化
+  0. 关闭本菜单启动的全部终端并退出
+------------------------------------------
+推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–9。
+提示：CAN 建议先配免密 sudo（见 §7）。
+提示：VR 臂起始/复位=hands_up（X=左，A=右）；结束 VR 或按 0 时回 home。
+提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
+提示：启动真机前请确认急停、CAN 接口及工作空间安全。
+请输入序号 [0-9,11-14]：
+```
+
+| 序号 | 作用 |
+|------|------|
+| **11** | 首次：安装 CAN 绑定 + 启动全部 CAN |
+| **12** | 全身 VR（CAN + 臂 VR + 底盘 VR） |
+| **13** | 数据采集（VR + 相机 + 采集脚本） |
+| **14** | 数据回放（底盘 + FP 驱动 + 相机 + RViz + replay） |
+| **1–9** | 分布步骤拆分调试 |
+| **0** | 关闭本菜单启动的全部终端 |
+
+说明：
+
+- CAN 免密见 §7 `install_passwordless_sudo.sh`。
+- 采集/回放请用 **13 / 14**；数据写入 `datasets/`。
+- 回放勿与 VR（5/12/13）或 MoveIt（4）同时开。
+- VR 臂：起始/复位 = `hands_up`（手柄 **X**=左臂，**A**=右臂）；结束或按 **0** 时回 `home`。
+
+---
+
+## 3. 系统要求
+
+| 项 | 说明 |
+|----|------|
+| OS | Ubuntu 22.04 |
+| ROS | ROS 2 Humble（须先按 [官方文档](https://docs.ros.org/en/humble/Installation.html) 装好 `/opt/ros/humble`） |
+| Python | 系统 Python 3.10 用于 colcon；Conda `openarm` 也用 3.10 |
+| Conda | Miniconda / Anaconda（VR、采集/回放） |
+| 硬件相关 | `can-utils`、SocketCAN 适配器；VR 另需 XRoboToolkit PC Service |
+
+### 3.1 首次安装顺序（推荐）
+
+1. 安装 ROS 2 Humble  
+2. [§3.2](#32-apt-依赖) 安装 apt 依赖  
+3. [§4](#4-获取代码) 克隆仓库并初始化子模块  
+4. [§5.1](#51-安装-xrobotoolkit-pc-service-deb) 安装 XRoboToolkit PC Service（`.deb`）  
+5. [§5.2](#52-创建-openarm)–[§5.3](#53-vr-与采集-python-依赖) 创建 `openarm` 并安装 VR/采集 Python 依赖  
+6. [§5.4](#54-安装-pico-头显-apk)（仅 VR）安装 PICO 端 APK  
+7. [§6](#6-构建与加载环境) `build.sh` 编译并 `source_all.sh`  
+8. VR 前按 [§1](#1-仿真--真机运行前联机-pc-service-与-pico) 联机，再 [§2](#2-快捷启动控制菜单) 快捷启动
+
+### 3.2 apt 依赖
+
+一次性安装编译与运行所需包（缺任一常见依赖会导致对应包编译失败，见 [§14](#14-常见问题)）：
 
 ```bash
 sudo apt update
 sudo apt install -y \
   can-utils git libasio-dev libboost-all-dev \
   python3-colcon-common-extensions python3-h5py python3-numpy python3-pil \
-  ros-humble-controller-manager ros-humble-hardware-interface \
+  ros-humble-compressed-image-transport \
+  ros-humble-controller-manager ros-humble-diagnostic-updater \
+  ros-humble-hardware-interface ros-humble-librealsense2 \
   ros-humble-moveit ros-humble-moveit-ros-perception \
   ros-humble-ros2-controllers ros-humble-teleop-twist-keyboard \
   ros-humble-xacro
 ```
 
+| 包 | 用途 |
+|----|------|
+| `libasio-dev` | 底盘 `ugv_sdk` 编译（缺则报 `asio.hpp: No such file`） |
+| `ros-humble-hardware-interface` 等 | OpenArm `ros2_control` / MoveIt |
+| `ros-humble-librealsense2` | RealSense SDK（供工作空间内 `realsense2_camera` 链接） |
+| `ros-humble-diagnostic-updater` | RealSense 相机节点依赖 |
+| `ros-humble-compressed-image-transport` | 发布 `/.../compressed`；RViz 与 `data_collection` 默认用压缩图 |
+
 ---
 
-## 2. 获取代码
+## 4. 获取代码
 
 ```bash
-git clone --recurse-submodules <repository-url> ~/RBM_openarm
+git clone --recurse-submodules https://github.com/ChangerC77/RBM_openarm.git ~/RBM_openarm
+cd ~/RBM_openarm
+git submodule update --init --recursive
+```
+
+若仓库已存在但子模块目录为空（例如未加 `--recurse-submodules`），在仓库根目录再执行一次：
+
+```bash
 cd ~/RBM_openarm
 git submodule update --init --recursive
 ```
@@ -85,11 +210,60 @@ RBM_openarm/
 
 ---
 
-## 3. Conda 环境
+## 5. Conda 与 VR 运行时
 
-### 3.1 创建 `openarm`
+仅做机械臂/底盘/相机、不做 VR 时，可跳过 [§5.1](#51-安装-xrobotoolkit-pc-service-deb)、[§5.4](#54-安装-pico-头显-apk)，但仍建议创建 [§5.2](#52-创建-openarm) 以便后续采集。
 
-ROS 工作空间用系统 Python 构建；`openarm` 用于 VR、采集/回放与 Python 工具：
+### 5.1 安装 XRoboToolkit PC Service（deb）
+
+PC 端 VR 数据服务，提供 `libPXREARobotSDK.so`（XR Bridge / `xrobotoolkit_sdk` 运行时依赖）。请先下载 Ubuntu 22.04 的 deb（勿用源码替代本步骤，除非你明确要自行编译 PC Service）：
+
+- 发布页下载：[XRoboToolkit_PC_Service_1.0.0_ubuntu_22.04_amd64.deb](https://github.com/XR-Robotics/XRoboToolkit-PC-Service/releases/download/v1.0.0/XRoboToolkit_PC_Service_1.0.0_ubuntu_22.04_amd64.deb)
+- 源码仓库（可选）：[XRoboToolkit-PC-Service](https://github.com/XR-Robotics/XRoboToolkit-PC-Service)
+
+安装：
+
+```bash
+# 进入 deb 所在目录后执行（文件名以实际下载为准）
+sudo dpkg -i XRoboToolkit_PC_Service_1.0.0_ubuntu_22.04_amd64.deb
+```
+
+若提示依赖缺失：
+
+```bash
+sudo apt -f install -y
+sudo dpkg -i XRoboToolkit_PC_Service_1.0.0_ubuntu_22.04_amd64.deb
+```
+
+安装后目录为 `/opt/apps/roboticsservice/`。启动 PC Service（图形界面或脚本均可）：
+
+```bash
+bash /opt/apps/roboticsservice/runService.sh
+```
+
+也可在应用菜单打开 `XRoboToolkit-PC-Service`。启动成功后会弹出服务窗口；再打开 PICO 头显端的 `XRoboToolkit` App，并保证头显与 PC 同一局域网。
+
+验证：
+
+```bash
+ls /opt/apps/roboticsservice/SDK/x64/libPXREARobotSDK.so
+ls /opt/apps/roboticsservice/runService.sh
+```
+
+更完整的迁移说明见 [`docs/openarm/vr_deployment_guide.md`](docs/openarm/vr_deployment_guide.md)。
+
+### 5.2 创建 `openarm`
+
+ROS 工作空间用**系统 Python** 构建；`openarm` 仅用于 VR、采集/回放与相关 Python 工具。
+
+若 `conda create` 提示需接受 Anaconda Terms of Service：
+
+```bash
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+```
+
+然后创建环境：
 
 ```bash
 conda create -n openarm python=3.10 -y
@@ -97,46 +271,44 @@ conda activate openarm
 python -m pip install "empy==3.3.4" catkin_pkg
 ```
 
-创建成功时类似：
-
-```text
-## Package Plan ##
-
-  environment location: /home/<user>/miniconda3/envs/openarm
-
-  added / updated specs:
-    - python=3.10
-
-Preparing transaction: done
-Verifying transaction: done
-Executing transaction: done
-
-# To activate this environment, use
-#
-#     $ conda activate openarm
-#
-# To deactivate an active environment, use
-#
-#     $ conda deactivate
-```
-
-不要在已激活 Conda 时直接跑普通 `colcon build`。请使用仓库的 `build.sh`，它会隔离 Conda / 用户目录里的新版 `setuptools_scm`，避免与 ROS Humble 的 `empy`、`catkin_pkg` 冲突。
-
-### 3.2 VR 依赖
-
-```bash
-cd ~/RBM_openarm/third_party/XRoboToolkit-Teleop-Sample-Python
-conda activate openarm
-bash setup_conda.sh --install
-```
-
-不要执行 `setup_conda.sh --conda openarm`（会先删除现有 `openarm` 环境）。
-
-采集/回放额外依赖：
+验证：
 
 ```bash
 conda activate openarm
+python --version          # 应为 3.10.x
+python -c "import empy, catkin_pkg; print('ok')"
+```
+
+不要在已激活 Conda 时直接跑普通 `colcon build`。请使用仓库的 `build.sh`：它会隔离 Conda，避免与 ROS Humble 的 `empy` / `catkin_pkg` 冲突。
+
+### 5.3 VR 与采集 Python 依赖
+
+本仓库 VR 运行时检查的是 `xrobotoolkit_sdk` + `placo`（见 `launch_vr_teleop.sh`），**不需要** torch / CUDA。请先完成 [§5.1](#51-安装-xrobotoolkit-pc-service-deb)，再编译 Python 绑定（`setup_ubuntu.sh` 会链接 PC Service 的 SDK）。
+
+不要执行：
+
+- `third_party/XRoboToolkit-Teleop-Sample-Python/setup_conda.sh --install`（会装完整 `xrobotoolkit_teleop` 并拉取 torch/CUDA）
+- `setup_conda.sh --conda openarm`（会先删除现有 `openarm` 环境）
+
+推荐安装：
+
+```bash
+conda activate openarm
+
+# VR：Python SDK 绑定 + IK（子模块须已 init）
+cd ~/RBM_openarm/third_party/XRoboToolkit-PC-Service-Pybind
+bash setup_ubuntu.sh
+pip install placo
+
+# 采集 / 回放
 pip install h5py opencv-python pyyaml
+```
+
+验证：
+
+```bash
+conda activate openarm
+python -c "import xrobotoolkit_sdk, placo, h5py, cv2, yaml; print('VR/采集依赖 ok')"
 ```
 
 若使用预打包环境：
@@ -145,9 +317,33 @@ pip install h5py opencv-python pyyaml
 source ~/RBM_openarm/openarm_env/bin/activate
 ```
 
+### 5.4 安装 PICO 头显 APK
+
+仅 VR 需要。先在 PICO（如 PICO 4 Ultra）开启开发者模式，并在 PC 上装好 [`adb`](https://developer.android.com/tools/adb)；头显用数据线连接 PC 并允许调试。
+
+下载 APK：
+
+- [XRoboToolkit-PICO-1.1.1.apk](https://github.com/XR-Robotics/XRoboToolkit-Unity-Client/releases/download/v1.1.1/XRoboToolkit-PICO-1.1.1.apk)
+- Unity 客户端说明：[XRoboToolkit-Unity-Client](https://github.com/XR-Robotics/XRoboToolkit-Unity-Client)
+
+安装到头显：
+
+```bash
+adb install -g XRoboToolkit-PICO-1.1.1.apk
+```
+
+成功时类似：
+
+```text
+Performing Streamed Install
+Success
+```
+
+头显上打开 App `XRoboToolkit`，与已启动的 PC Service 联机后即可做遥操作。
+
 ---
 
-## 4. 构建与加载环境
+## 6. 构建与加载环境
 
 ```bash
 cd ~/RBM_openarm
@@ -155,7 +351,17 @@ cd ~/RBM_openarm
 source ~/RBM_openarm/source_all.sh
 ```
 
-`build.sh` 固定使用系统 `/usr/bin/python3`。当前工作空间约 **17** 个 ROS 2 包（数据采集在根目录 `data_collection/`，不参与 colcon）。
+说明：
+
+- `build.sh` 固定使用系统 `/usr/bin/python3`，即使当前 shell 已 `conda activate openarm` 也可安全执行  
+- 工作空间约 **17** 个 ROS 2 包；`data_collection/` 在仓库根目录，不参与 colcon  
+- 编译前请确认 [§3.2](#32-apt-依赖) 已装全，否则常见失败见下表
+
+| 报错关键词 | 缺少的包 |
+|------------|----------|
+| `asio.hpp` | `libasio-dev` |
+| `hardware_interface` | `ros-humble-hardware-interface`（及 controller / MoveIt 相关） |
+| `diagnostic_updater` / `realsense2` | `ros-humble-diagnostic-updater`、`ros-humble-librealsense2` |
 
 成功构建类似：
 
@@ -191,67 +397,16 @@ source ~/RBM_openarm/source_all.sh
 echo 'source ~/RBM_openarm/source_all.sh' >> ~/.bashrc
 ```
 
----
-
-## 5. 控制菜单（推荐）
-
-在本机桌面终端（需图形环境）运行：
+快速自检：
 
 ```bash
-cd ~/RBM_openarm
-./openarm_ws/scripts/control_menu.sh
+source ~/RBM_openarm/source_all.sh
+ros2 pkg list | grep -E 'openarm|ranger|realsense|rbm'
 ```
-
-菜单示例：
-
-```text
-==========================================
-          RBM OpenArm 控制菜单
-==========================================
-【一键流程 · 同一多 tab 终端】
- 11. 首次启动
- 12. 全身 VR 遥操作
- 13. 数据采集
- 14. 数据回放
-
-【单独组件】
-  1. 安装 CAN 绑定（仅首次）
-  2. 启动全部 CAN（can0/can1/can2）
-  3. 启动 OpenArm 驱动
-  4. 启动 OpenArm MoveIt 控制（需先启动 3）
-  5. 启动 OpenArm VR 遥操作（与 4 冲突）
-  6. 启动底盘控制
-  7. 启动底盘 VR 遥操作
-  8. 启动 camera+rviz 可视化
-  0. 关闭本菜单启动的全部终端并退出
-------------------------------------------
-推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–8。
-提示：一键流程会在同一 gnome-terminal 多 tab 启动；请先在 CAN tab 完成 sudo。
-提示：VR 臂起始/复位=hands_up（X=左，A=右）；结束 VR 或按 0 时回 home。
-提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
-提示：启动真机前请确认急停、CAN 接口及工作空间安全。
-请输入序号 [0-8,11-14]：
-```
-
-| 序号 | 作用 |
-|------|------|
-| **11** | 首次：安装 CAN 绑定 + 启动全部 CAN |
-| **12** | 全身 VR（CAN + 臂 VR + 底盘 VR） |
-| **13** | 数据采集（VR + 相机 + 采集脚本） |
-| **14** | 数据回放（底盘 + FP 驱动 + 相机 + RViz + replay） |
-| **1–8** | 单独组件拆分调试 |
-| **0** | 关闭本菜单启动的全部终端 |
-
-说明：
-
-- 一键流程在同一 gnome-terminal 多 tab 拉起；请先在 CAN tab 完成 sudo。
-- 采集/回放请用 **13 / 14**；数据写入 `datasets/`。
-- 回放勿与 VR（5/12/13）或 MoveIt（4）同时开。
-- VR 臂：起始/复位 = `hands_up`（手柄 **X**=左臂，**A**=右臂）；结束或按 **0** 时回 `home`。
 
 ---
 
-## 6. CAN 接口
+## 7. CAN 接口
 
 约定：
 
@@ -261,11 +416,21 @@ cd ~/RBM_openarm
 | `can1` | OpenArm 左臂 | PEAK `peak_usb` 通道 1，CAN-FD 1M/5M |
 | `can2` | Ranger 底盘 | `gs_usb`，500 kbps |
 
+OpenArm 双通道 USB-CANFD 通讯卡接线示意（面板丝印：`CAN0` / `CAN1`；DB9 常用 **2=CAN-L、3=CAN-GND、7=CAN-H**；按设备说明设置 120Ω 终端电阻）：
+
+![OpenArm USB-CANFD 连接器接线](docs/images/openarm-can-connector.jpg)
+
 USB 同时插入时，内核可能按枚举顺序分配接口名。请先安装持久绑定（菜单 **11** 或 **1**）：
 
 ```bash
 cd ~/RBM_openarm
 sudo ./openarm_ws/scripts/can/install_can_bindings.sh
+```
+
+可选（推荐）：为本机用户配置 CAN 脚本 **sudo 免密**（只需一次，之后菜单 1/2/11–14 不再询问密码；**不会**把登录密码写入仓库）：
+
+```bash
+bash ./openarm_ws/scripts/can/install_passwordless_sudo.sh
 ```
 
 规则：
@@ -333,9 +498,9 @@ CAN ID 与数据随电机状态变化。若完全无输出，仅“接口 UP”�
 
 ---
 
-## 7. OpenArm 双机械臂
+## 8. OpenArm 双机械臂
 
-### 7.1 仿真 / 假硬件
+### 8.1 仿真 / 假硬件
 
 未接真机时必须 `use_fake_hardware:=true`：
 
@@ -365,7 +530,7 @@ RViz 双臂模型：
 
 ![OpenArm 双臂 RViz 模型](docs/images/openarm-rviz-bimanual.png)
 
-### 7.2 真实双臂
+### 8.2 真实双臂
 
 确认 `can0`/`can1` 正常且周围安全后（菜单 **3** 为轨迹控制器）：
 
@@ -389,7 +554,7 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py \
   launch_rviz:=false
 ```
 
-### 7.3 MoveIt 2
+### 8.3 MoveIt 2
 
 假硬件：
 
@@ -421,7 +586,7 @@ MoveIt 规划界面：
 
 ![MoveIt 夹爪规划](docs/images/moveit-gripper.png)
 
-### 7.4 首次零位标定
+### 8.4 首次零位标定
 
 仅在机械安装、换电机或零位丢失后执行；标定过程中手臂会运动：
 
@@ -472,9 +637,9 @@ wrote zero positon to arm
 
 ---
 
-## 8. Ranger Mini 3.0 底盘
+## 9. Ranger Mini 3.0 底盘
 
-### 8.1 硬件准备
+### 9.1 硬件准备
 
 1. 连接底盘 CAN_H / CAN_L 与 USB-CAN
 2. 打开底盘电源并释放两侧急停
@@ -526,7 +691,7 @@ can2  291   [2]  00 00
 
 底盘脚本只操作 `gs_usb` → `can2`，不会误改 OpenArm 的 `peak_usb` `can0/can1`。
 
-### 8.2 启动底盘驱动
+### 9.2 启动底盘驱动
 
 菜单 **6**，或：
 
@@ -557,9 +722,9 @@ ros2 topic echo /odom
 ros2 topic echo /cmd_vel
 ```
 
-### 8.3 键盘控制
+### 9.3 键盘控制
 
-保持底盘驱动运行，新终端：
+推荐：先菜单 **6** 启动底盘驱动，再菜单 **7**。或手动：
 
 ```bash
 source ~/RBM_openarm/source_all.sh
@@ -594,9 +759,9 @@ currently:        speed 0.50        turn 1.00
 
 `i/k/,` 前进/停/退，`j/l` 转向，`Ctrl+C` 退出。
 
-### 8.4 VR 摇杆控底盘
+### 9.4 VR 摇杆控底盘
 
-推荐菜单 **7** 或一键 **12**。手动时：
+推荐菜单 **8** 或快速启动 **12**。手动时：
 
 ```bash
 bash /opt/apps/roboticsservice/runService.sh
@@ -642,7 +807,7 @@ openarm_ws/src/chassis/rbm_base_control/config/base_controller.yaml
 
 ---
 
-## 9. RealSense 三相机
+## 10. RealSense 三相机
 
 | 名称 | 位置 | 序列号 | 分辨率 |
 |------|------|--------|--------|
@@ -650,14 +815,18 @@ openarm_ws/src/chassis/rbm_base_control/config/base_controller.yaml
 | `camera_h` | 胸前 D435I | `134222076235` | 1280×720@30 |
 | `camera_r` | 右腕 D405 | `260322276489` | 640×480@30 |
 
+前置：已安装 `ros-humble-librealsense2`、`ros-humble-diagnostic-updater`、`ros-humble-compressed-image-transport`（见 [§3.2](#32-apt-依赖)）。
+
 查询设备：
 
 ```bash
 source ~/RBM_openarm/source_all.sh
 ./openarm_ws/scripts/sensors/search.sh
+# 或
+rs-enumerate-devices | head -40
 ```
 
-启动三相机 + RViz（菜单 **8**，或一键 **13/14** 内含）：
+启动三相机 + RViz（菜单 **9**，或快速启动 **13/14** 内含）：
 
 ```bash
 ./openarm_ws/scripts/sensors/realsense.sh
@@ -671,17 +840,25 @@ camera_h -> serial=_134222076235
 camera_r -> serial=_260322276489
 ```
 
-RViz 画面：
+RViz（`scripts/sensors/rviz/camera.rviz`）与采集脚本默认订阅**压缩**话题。未装 `compressed-image-transport` 时只会有原始图话题，RViz 会黑屏；装好后需**重启相机节点**才会出现 `/compressed`。
 
-![RealSense 三相机 RViz 画面](docs/images/realsense-three-camera-rviz.png)
-
-压缩图像话题：
+```bash
+# 应能看到三路 compressed
+ros2 topic list | grep compressed
+ros2 topic hz /camera/camera_l/color/image_rect_raw/compressed
+```
 
 ```text
 /camera/camera_l/color/image_rect_raw/compressed
 /camera/camera_h/color/image_rect_raw/compressed
 /camera/camera_r/color/image_rect_raw/compressed
 ```
+
+对应原始图（调试可用）：`/camera/camera_{l,h,r}/color/image_rect_raw`。
+
+RViz 画面：
+
+![RealSense 三相机 RViz 画面](docs/images/realsense-three-camera-rviz.png)
 
 安装附件：
 
@@ -693,22 +870,16 @@ RViz 画面：
 
 ---
 
-## 10. VR 遥操作
+## 11. VR 遥操作
 
 使用前确认：
 
-1. XRoboToolkit PC Service 已启动
-2. PICO 已开机、装好客户端，与 PC 同网
-3. `openarm` 环境可用
+1. 已按 [§5.1](#51-安装-xrobotoolkit-pc-service-deb) / [§5.3](#53-vr-与采集-python-依赖) / [§5.4](#54-安装-pico-头显-apk) 完成安装
+2. 已按 [§1](#1-仿真--真机运行前联机-pc-service-与-pico) 启动 PC Service，并在 PICO 打开 `XRoboToolkit`、同网联机
+3. `conda activate openarm` 可用
 4. 真机时 `can0`/`can1` 已配置且机械臂已标定
 
-推荐：**菜单 12**（全身）或 **5 + 7**。
-
-PC Service：
-
-```bash
-bash /opt/apps/roboticsservice/runService.sh
-```
+推荐：**菜单 12**（全身）或 **5 + 8**。PC Service 启动命令见 [§1](#1-仿真--真机运行前联机-pc-service-与-pico)。
 
 假硬件：
 
@@ -749,7 +920,7 @@ cd ~/RBM_openarm
 
 ---
 
-## 11. HDF5 数据采集与回放
+## 12. HDF5 数据采集与回放
 
 推荐菜单 **13**（采集）/ **14**（回放）。也可在话题已就绪时手动运行。详见 [`data_collection/README.md`](data_collection/README.md)。
 
@@ -760,7 +931,7 @@ conda activate openarm
 pip install h5py opencv-python pyyaml
 ```
 
-### 11.1 采集
+### 12.1 采集
 
 需相机、`/joint_states`、TF 末端、可选 `/odom` `/cmd_vel`：
 
@@ -803,7 +974,7 @@ python data_collection/data_collection.py
 | `data/demo_0/observations/cmd_vel` / `actions_base` | 底盘速度命令 6 维 |
 | `data/demo_0/observations/images/{head,left_wrist,right_wrist}` | JPEG |
 
-### 11.2 回放
+### 12.2 回放
 
 需 `forward_position` 驱动（勿与 VR IK 同时开）；回放底盘时再开底盘驱动。菜单 **14** 会一并拉起。
 
@@ -834,7 +1005,7 @@ python data_collection/replay.py
 
 ---
 
-## 12. 命令行全栈启动
+## 13. 命令行全栈启动
 
 查看选项：
 
@@ -879,7 +1050,7 @@ Tip: daily workflows prefer ./openarm_ws/scripts/control_menu.sh (11–14).
 
 ---
 
-## 13. 常见问题
+## 14. 常见问题
 
 ### 构建出现 `setuptools_scm` / `empy` / `catkin_pkg` 冲突
 
@@ -889,6 +1060,36 @@ Tip: daily workflows prefer ./openarm_ws/scripts/control_menu.sh (11–14).
 cd ~/RBM_openarm
 ./openarm_ws/scripts/build.sh
 ```
+
+### 编译报 `asio.hpp` / `hardware_interface` / `diagnostic_updater`
+
+按 [§3.2](#32-apt-依赖) 补齐依赖后重编：
+
+```bash
+sudo apt install -y libasio-dev \
+  ros-humble-hardware-interface ros-humble-controller-manager \
+  ros-humble-ros2-controllers ros-humble-moveit ros-humble-xacro \
+  ros-humble-diagnostic-updater ros-humble-librealsense2 \
+  ros-humble-compressed-image-transport
+cd ~/RBM_openarm && ./openarm_ws/scripts/build.sh
+```
+
+### `setup_conda.sh --install` 长时间下载 torch / CUDA
+
+本工程不需要。请按 [§5.3](#53-vr-与采集-python-依赖) 只装 `xrobotoolkit_sdk` + `placo` + 采集 pip 包。若误装可中断下载，不影响已装好的 SDK。
+
+### `libPXREARobotSDK.so` 找不到 / XR Bridge 无法初始化
+
+未安装 PC Service deb，或未启动服务。按 [§5.1](#51-安装-xrobotoolkit-pc-service-deb) 执行 `sudo dpkg -i ...`，确认：
+
+```bash
+ls /opt/apps/roboticsservice/SDK/x64/libPXREARobotSDK.so
+bash /opt/apps/roboticsservice/runService.sh
+```
+
+### Conda 报 Terms of Service / `CondaToSNonInteractiveError`
+
+见 [§5.2](#52-创建-openarm) 的 `conda tos accept` 命令。
 
 ### `AMENT_PREFIX_PATH` 指向旧工作空间
 
@@ -905,12 +1106,19 @@ source ~/RBM_openarm/source_all.sh
 
 检查底盘电源、急停、CAN 线序、终端电阻、USB-CAN 驱动和接口名。`can2 is up` 只表示 Linux 接口配置成功。
 
-### RealSense 无图像或延迟高
+### RealSense：RViz 黑屏 / 无 `/compressed` 话题
+
+1. 确认节点在跑且有原始图：`ros2 topic list | grep image_rect_raw`  
+2. 安装压缩插件：`sudo apt install -y ros-humble-compressed-image-transport`  
+3. **重启**相机（菜单 **0** 再 **9**），再查：`ros2 topic list | grep compressed`  
+4. RViz 配置见 `openarm_ws/scripts/sensors/rviz/camera.rviz`（默认订 compressed）
+
+其它：
 
 - 确认没有重复的 RealSense 节点  
 - 使用 USB 3.x，避免无供电 HUB  
-- RViz 用压缩话题、Best Effort、队列深度 1  
-- 重新插拔后再次运行菜单 **8** 或 `realsense.sh`
+- RViz Image 使用 Best Effort、队列深度 1  
+- `lsusb` / `rs-enumerate-devices` 确认三台在线，序列号与脚本一致  
 
 ### 回放与 VR 抢控制器
 
@@ -918,11 +1126,14 @@ source ~/RBM_openarm/source_all.sh
 
 ---
 
-## 14. 参考资料
+## 15. 参考资料
 
 - [OpenArm](https://github.com/enactic/openarm_ros2)
 - [Ranger ROS 2](https://github.com/agilexrobotics/ranger_ros2)
 - [Ranger Mini 3.0](https://www.agilex.ai/page/6908c1285e78cfa260412be9)
 - [XRoboToolkit](https://github.com/XR-Robotics)
+- [XRoboToolkit PC Service（deb）](https://github.com/XR-Robotics/XRoboToolkit-PC-Service/releases)
+- [XRoboToolkit PICO APK](https://github.com/XR-Robotics/XRoboToolkit-Unity-Client/releases)
 - [RealSense ROS](https://github.com/IntelRealSense/realsense-ros)
-- 本仓库：[`docs/openarm/`](docs/openarm/)、[`data_collection/README.md`](data_collection/README.md)
+- 本仓库：[`docs/openarm/`](docs/openarm/)、[`docs/openarm/vr_deployment_guide.md`](docs/openarm/vr_deployment_guide.md)、[`data_collection/README.md`](data_collection/README.md)
+

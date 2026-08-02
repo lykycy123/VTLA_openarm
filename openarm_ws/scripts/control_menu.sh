@@ -12,21 +12,22 @@ usage() {
   cat <<'EOF'
 用法：control_menu.sh
 
-一键流程（同一多 tab 终端）：
+快速启动：
   11 首次启动
   12 全身 VR 遥操作
   13 数据采集
   14 数据回放
 
-单独组件：
+分布步骤：
   1  安装 CAN 绑定（仅首次）
   2  启动全部 CAN（can0/can1/can2）
   3  启动 OpenArm 驱动
   4  启动 OpenArm MoveIt 控制（需先启动 3）
   5  启动 OpenArm VR 遥操作（与 4 冲突）
   6  启动底盘控制
-  7  启动底盘 VR 遥操作
-  8  启动 camera+rviz 可视化
+  7  启动底盘键盘控制（需先启动 6）
+  8  启动底盘 VR 遥操作
+  9  启动 camera+rviz 可视化
   0  关闭本菜单启动的全部终端并退出
 EOF
 }
@@ -170,6 +171,14 @@ run_component() {
       ros2 launch ranger_bringup ranger_mini_v3.launch.py port_name:=can2 || status=$?
       ;;
 
+    chassis_keyboard)
+      load_ros_environment || keep_terminal_open 1
+      echo "[INFO] 启动底盘键盘控制（发布 /cmd_vel）..."
+      echo "[INFO] 请确认已先通过菜单 6 启动底盘驱动。"
+      echo "[INFO] 请保持本终端焦点：i/k 前进/后退，j/l 转向，其他键停止，Ctrl+C 退出。"
+      ros2 run teleop_twist_keyboard teleop_twist_keyboard || status=$?
+      ;;
+
     xr_bridge)
       load_ros_environment || keep_terminal_open 1
       activate_openarm_environment || keep_terminal_open 1
@@ -235,10 +244,10 @@ run_component() {
     data_collection)
       load_ros_environment || keep_terminal_open 1
       activate_openarm_environment || keep_terminal_open 1
-      # 一键流程 13 时相机/VR 同窗并行启动，稍等话题就绪
+      # 快速启动 13 时相机/VR 同窗并行启动，稍等话题就绪
       sleep 5
       echo "[INFO] 启动数据采集（相机 + 关节/末端 + odom/cmd_vel）..."
-      echo "[INFO] 请确认已启动相机(8)、机械臂(3或5)、底盘(6或7，可选)。"
+      echo "[INFO] 请确认已启动相机(9)、机械臂(3或5)、底盘(6/7/8，可选)。"
       echo "[INFO] SPACE=开始/停止录制并保存，ESC=退出。"
       python3 "${project_dir}/data_collection/data_collection.py" \
         --config "${project_dir}/data_collection/config.yaml" \
@@ -261,7 +270,7 @@ run_component() {
     data_replay)
       load_ros_environment || keep_terminal_open 1
       activate_openarm_environment || keep_terminal_open 1
-      # 一键流程 14 时 FP/底盘同窗并行启动，稍等控制器就绪
+      # 快速启动 14 时 FP/底盘同窗并行启动，稍等控制器就绪
       sleep 5
       echo "[INFO] 启动数据回放（HDF5 → 臂/夹爪/可选底盘）..."
       echo "[INFO] SPACE=播放/暂停，ESC=退出（默认回 home）。"
@@ -424,7 +433,7 @@ start_components_window() {
     return 1
   fi
 
-  # 标记 VR 窗口已创建，便于 5/7 后续并入同一窗口
+  # 标记 VR 窗口已创建，便于 5/8 后续并入同一窗口
   if [[ "${prefer_existing_vr_window}" == "1" ]] || [[ "${label}" == *VR* ]]; then
     printf '%s\n' "1" >"${state_dir}/vr_teleop_window.active"
   fi
@@ -539,7 +548,7 @@ start_first_boot_window() {
     "Bringup All CAN"
   )
   echo "[INFO] 首次启动：安装 CAN 绑定 → 启动全部 CAN（同一终端多 tab）。"
-  echo "[提示] 请先在「Install CAN Bindings」tab 完成 sudo；再处理「Bringup All CAN」。"
+  echo "[提示] CAN 相关已可免密 sudo（若仍提示密码，请执行一次：bash openarm_ws/scripts/can/install_passwordless_sudo.sh）。"
   start_components_window components titles "首次启动" 0
 }
 
@@ -562,8 +571,8 @@ start_full_body_vr_window() {
     "Ranger VR Control"
   )
   prepare_for_vr_stack || return 1
-  echo "[INFO] 全身 VR：CAN → 臂 VR(5) → 底盘 VR(7)（同一终端多 tab）。"
-  echo "[提示] 请先在 CAN tab 完成 sudo 并确认接口就绪，再使用 VR。"
+  echo "[INFO] 全身 VR：CAN → 臂 VR(5) → 底盘 VR(8)（同一终端多 tab）。"
+  echo "[提示] 请先确认 CAN tab 接口已就绪，再使用 VR。"
   start_components_window components titles "全身 VR" 1
 }
 
@@ -797,25 +806,26 @@ show_menu() {
 ==========================================
           RBM OpenArm 控制菜单
 ==========================================
-【一键流程 · 同一多 tab 终端】
+【快速启动】
  11. 首次启动
  12. 全身 VR 遥操作
  13. 数据采集
  14. 数据回放
 
-【单独组件】
+【分布步骤】
   1. 安装 CAN 绑定（仅首次）
   2. 启动全部 CAN（can0/can1/can2）
   3. 启动 OpenArm 驱动
   4. 启动 OpenArm MoveIt 控制（需先启动 3）
   5. 启动 OpenArm VR 遥操作（与 4 冲突）
   6. 启动底盘控制
-  7. 启动底盘 VR 遥操作
-  8. 启动 camera+rviz 可视化
+  7. 启动底盘键盘控制（需先启动 6）
+  8. 启动底盘 VR 遥操作
+  9. 启动 camera+rviz 可视化
   0. 关闭本菜单启动的全部终端并退出
 ------------------------------------------
-推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–8。
-提示：一键流程会在同一 gnome-terminal 多 tab 启动；请先在 CAN tab 完成 sudo。
+推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–9。
+提示：CAN 免密见 scripts/can/install_passwordless_sudo.sh。
 提示：VR 臂起始/复位=hands_up（X=左，A=右）；结束 VR 或按 0 时回 home。
 提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
 提示：启动真机前请确认急停、CAN 接口及工作空间安全。
@@ -855,7 +865,7 @@ trap 'stop_all; exit 130' INT TERM
 
 while true; do
   show_menu
-  read -r -p "请输入序号 [0-8,11-14]：" choice
+  read -r -p "请输入序号 [0-9,11-14]：" choice
 
   case "${choice}" in
     11)
@@ -899,10 +909,23 @@ while true; do
       start_terminal chassis_driver "Ranger Mini Driver"
       ;;
     7)
-      # 与菜单 5 并入同一 VR 窗口；已运行的 PC Service / XR Bridge 会跳过。
-      start_chassis_vr_window
+      if ! component_is_running chassis_driver; then
+        echo "[错误] 尚未启动底盘驱动；请先输入 6。"
+      elif component_is_running chassis_vr; then
+        echo "[错误] 底盘 VR（菜单 8）已在发布 /cmd_vel；请先输入 0 关闭，再使用键盘控制。"
+      else
+        start_terminal chassis_keyboard "Chassis Keyboard Teleop"
+      fi
       ;;
     8)
+      if component_is_running chassis_keyboard; then
+        echo "[错误] 底盘键盘控制（菜单 7）已在发布 /cmd_vel；请先输入 0 关闭，再使用底盘 VR。"
+      else
+        # 与菜单 5 并入同一 VR 窗口；已运行的 PC Service / XR Bridge 会跳过。
+        start_chassis_vr_window
+      fi
+      ;;
+    9)
       start_cameras_window
       ;;
     0)

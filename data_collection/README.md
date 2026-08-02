@@ -11,7 +11,7 @@ pip install h5py opencv-python pyyaml
 
 ## 启动前
 
-推荐控制菜单一键流程 **13**（采集）/ **14**（回放）。手动时建议：`2 → 5 → 7 → 8`（CAN、VR 臂、底盘 VR、相机），或至少保证以下话题有数据：
+推荐控制菜单快速启动 **13**（采集）/ **14**（回放）。手动时建议：`2 → 5 → 8 → 9`（CAN、VR 臂、底盘 VR、相机），或至少保证以下话题有数据：
 
 - `/camera/camera_{l,h,r}/color/image_rect_raw/compressed`
 - `/joint_states`
