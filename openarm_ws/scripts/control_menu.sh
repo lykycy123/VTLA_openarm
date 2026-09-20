@@ -826,7 +826,7 @@ show_menu() {
 ------------------------------------------
 推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–9。
 提示：CAN 免密见 scripts/can/install_passwordless_sudo.sh。
-提示：VR 臂起始/复位=hands_up（X=左，A=右）；结束 VR 或按 0 时回 home。
+提示：VR 臂启动到 hands_up，握把跟随；X/A=复位；结束或按 0 时回 home。
 提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
 提示：启动真机前请确认急停、CAN 接口及工作空间安全。
 EOF

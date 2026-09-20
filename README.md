@@ -103,7 +103,7 @@ cd ~/RBM_openarm
 ------------------------------------------
 推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–9。
 提示：CAN 建议先配免密 sudo（见 §7）。
-提示：VR 臂起始/复位=hands_up（X=左，A=右）；结束 VR 或按 0 时回 home。
+提示：VR 臂启动到 hands_up，握把跟随；X/A=复位；结束或按 0 时回 home。
 提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
 提示：启动真机前请确认急停、CAN 接口及工作空间安全。
 请输入序号 [0-9,11-14]：
@@ -123,7 +123,7 @@ cd ~/RBM_openarm
 - CAN 免密见 §7 `install_passwordless_sudo.sh`。
 - 采集/回放请用 **13 / 14**；数据写入 `datasets/`。
 - 回放勿与 VR（5/12/13）或 MoveIt（4）同时开。
-- VR 臂：起始/复位 = `hands_up`（手柄 **X**=左臂，**A**=右臂）；结束或按 **0** 时回 `home`。
+- VR 臂：启动后到 `hands_up`，握把跟随（缓入）；**X**=左臂、**A**=右臂复位；结束或按 **0** 时回 `home`。
 
 ---
 
@@ -276,7 +276,7 @@ python -m pip install "empy==3.3.4" catkin_pkg
 ```bash
 conda activate openarm
 python --version          # 应为 3.10.x
-python -c "import empy, catkin_pkg; print('ok')"
+python -c "import em, catkin_pkg; print('ok')"
 ```
 
 不要在已激活 Conda 时直接跑普通 `colcon build`。请使用仓库的 `build.sh`：它会隔离 Conda，避免与 ROS Humble 的 `empy` / `catkin_pkg` 冲突。

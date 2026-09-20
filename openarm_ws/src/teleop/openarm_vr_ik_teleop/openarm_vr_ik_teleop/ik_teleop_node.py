@@ -8,8 +8,8 @@
 发布：/left_forward_position_controller/commands, /right_forward_position_controller/commands
 Action：left_gripper_controller, right_gripper_controller (GripperCommand)
 
-起始位姿与运行中复位对齐 MoveIt group_state「hands_up」：
-  X 键 → 左臂回 hands_up；A 键 → 右臂回 hands_up。
+启动后插值到 MoveIt「hands_up」，握把激活后从当前末端增量跟随（缓入，避免接手抖动）。
+运行中复位：X=左臂 hands_up，A=右臂 hands_up。
 退出 VR 遥操作时双臂回到 MoveIt group_state「home」（全零）。
 """
 
@@ -82,14 +82,23 @@ class IkTeleopNode(Node):
         self.declare_parameter("gripper_update_throttle_s", 0.1)
         self.declare_parameter("hands_up_duration_s", 2.0)
         self.declare_parameter("home_duration_s", 2.5)
+        self.declare_parameter("max_joint_vel_rad_s", 1.5)
+        self.declare_parameter("vr_pose_lpf", 0.22)
+        self.declare_parameter("grip_release_threshold", 0.55)
+        self.declare_parameter("engage_blend_s", 0.45)
         scale = float(os.environ.get("IK_SCALE_FACTOR", self.get_parameter("scale_factor").value))
-        rate = self.get_parameter("control_rate").value
+        rate = float(self.get_parameter("control_rate").value)
+        self.dt = 1.0 / max(1.0, rate)
         self.grip_threshold = float(os.environ.get("IK_GRIP_THRESHOLD", self.get_parameter("grip_threshold").value))
         self.gripper_open_m = self.get_parameter("gripper_open_m").value
         self.gripper_closed_m = self.get_parameter("gripper_closed_m").value
         self.gripper_throttle_s = self.get_parameter("gripper_update_throttle_s").value
         self.hands_up_duration_s = float(self.get_parameter("hands_up_duration_s").value)
         self.home_duration_s = float(self.get_parameter("home_duration_s").value)
+        self.max_joint_vel = float(self.get_parameter("max_joint_vel_rad_s").value)
+        self.vr_pose_lpf = float(self.get_parameter("vr_pose_lpf").value)
+        self.grip_release_threshold = float(self.get_parameter("grip_release_threshold").value)
+        self.engage_blend_s = float(self.get_parameter("engage_blend_s").value)
         self._shutting_down = False
 
         urdf_path = build_openarm_urdf_path()
@@ -99,10 +108,10 @@ class IkTeleopNode(Node):
             os.unlink(urdf_path)
 
         self.solver = placo.KinematicsSolver(self.robot)
-        self.solver.dt = 1.0 / rate
+        self.solver.dt = self.dt
         self.solver.mask_fbase(True)
 
-        # 初始 q：基座单位四元数 + hands_up（与 MoveIt 一致）
+        # 初始 q 与 hands_up 对齐，任务目标与遥操作起始姿态一致
         self.robot.state.q[:7] = np.array([0, 0, 0, 0, 0, 0, 1])
         self.robot.state.q[LEFT_ARM_Q_SLICE] = HANDS_UP_LEFT
         self.robot.state.q[RIGHT_ARM_Q_SLICE] = HANDS_UP_RIGHT
@@ -119,15 +128,8 @@ class IkTeleopNode(Node):
         )
         self.right_task.configure("right_ee", "soft", 1.0)
 
-        # 冗余自由度：仅用 kinetic_energy 正则。manipulability/joints_task 与 OpenArm 双臂模型
-        # 组合易触发 QP NaN，故不启用。若有关节跳变，可降低 scale_factor。
-        self.solver.add_kinetic_energy_regularization_task(1e-6)
-
-        # VR 遥操作专用：收紧左右 joint4 的 lower，防止 IK 解算跳变（仅本节点生效）
-        joint_names = list(self.robot.model.names)
-        for j in ("openarm_left_joint4", "openarm_right_joint4"):
-            if j in joint_names:
-                self.robot.set_joint_limits(j, 0.15, 2.443461)
+        # 冗余自由度：仅用 kinetic_energy 正则。权重大于 1e-6，减轻奇异附近抖动。
+        self.solver.add_kinetic_energy_regularization_task(1e-4)
 
         self.scale = scale
         self.ref_left = None  # (xyz, quat)
@@ -143,9 +145,15 @@ class IkTeleopNode(Node):
         # 关节空间回 hands_up：None 或 dict(start, target, t0)
         self._home_left = None
         self._home_right = None
-        self._initial_home_started = False
+        self._seeded_from_joints = False
         self._prev_btn_a = 0
         self._prev_btn_x = 0
+        self._last_cmd_left = HANDS_UP_LEFT.copy()
+        self._last_cmd_right = HANDS_UP_RIGHT.copy()
+        self._filt_left_pose = None
+        self._filt_right_pose = None
+        self._engage_left_t0 = None
+        self._engage_right_t0 = None
 
         self.sub_joint = self.create_subscription(
             JointState, "/joint_states", self._cb_joint_states, 10
@@ -197,33 +205,55 @@ class IkTeleopNode(Node):
         self._last_left_gripper_time = 0.0
         self._last_right_gripper_time = 0.0
 
-        self.timer = self.create_timer(1.0 / rate, self._timer_callback)
+        self.timer = self.create_timer(self.dt, self._timer_callback)
         self.get_logger().info(
             "IK teleop node started, scale=%.2f, rate=%.0f Hz; "
-            "start/reset=hands_up (X=left, A=right); exit→home"
+            "hold hands_up; grip follow with blend-in; X/A→hands_up; exit→home"
             % (scale, rate)
         )
 
     def _now(self) -> float:
-        return self.get_clock().now().nanoseconds / 1e9
+        return time.monotonic()
 
     def _cb_joint_states(self, msg: JointState):
         with self._joint_state_lock:
             self.joint_state = msg
-        if not self._initial_home_started:
-            self._initial_home_started = True
+        if not self._seeded_from_joints:
+            left = self._arm_q_from_joint_states("left", HOME_LEFT)
+            right = self._arm_q_from_joint_states("right", HOME_RIGHT)
+            if left is None or right is None:
+                return
+            self._last_cmd_left = left.copy()
+            self._last_cmd_right = right.copy()
+            self.robot.state.q[LEFT_ARM_Q_SLICE] = left
+            self.robot.state.q[RIGHT_ARM_Q_SLICE] = right
+            self.robot.update_kinematics()
+            self.left_task.T_world_frame = self.robot.get_T_world_frame(
+                "openarm_left_link7"
+            )
+            self.right_task.T_world_frame = self.robot.get_T_world_frame(
+                "openarm_right_link7"
+            )
+            self._seeded_from_joints = True
+            self.get_logger().info(
+                "Seeded IK from /joint_states; moving both arms to hands_up"
+            )
             self._start_hands_up("left", reason="startup")
             self._start_hands_up("right", reason="startup")
 
     def _cb_left_pose(self, msg: PoseStamped):
         p = msg.pose.position
         o = msg.pose.orientation
-        self._left_pose = (np.array([p.x, p.y, p.z]), np.array([o.w, o.x, o.y, o.z]))
+        raw = (np.array([p.x, p.y, p.z]), np.array([o.w, o.x, o.y, o.z]))
+        self._filt_left_pose = self._filter_pose(self._filt_left_pose, raw[0], raw[1])
+        self._left_pose = self._filt_left_pose
 
     def _cb_right_pose(self, msg: PoseStamped):
         p = msg.pose.position
         o = msg.pose.orientation
-        self._right_pose = (np.array([p.x, p.y, p.z]), np.array([o.w, o.x, o.y, o.z]))
+        raw = (np.array([p.x, p.y, p.z]), np.array([o.w, o.x, o.y, o.z]))
+        self._filt_right_pose = self._filter_pose(self._filt_right_pose, raw[0], raw[1])
+        self._right_pose = self._filt_right_pose
 
     def _cb_left_grip(self, msg: Float32):
         self._left_grip = msg.data
@@ -282,11 +312,13 @@ class IkTeleopNode(Node):
             self.active_left = False
             self.ref_left = None
             self.ref_ctrl_left = None
+            self._engage_left_t0 = None
         else:
             self._home_right = move
             self.active_right = False
             self.ref_right = None
             self.ref_ctrl_right = None
+            self._engage_right_t0 = None
         self.get_logger().info(
             "Moving %s arm to hands_up (%s)" % (side, reason or "request")
         )
@@ -295,9 +327,79 @@ class IkTeleopNode(Node):
         msg = Float64MultiArray()
         msg.data = [float(x) for x in q]
         if side == "left":
+            self._last_cmd_left = np.asarray(q, dtype=np.float64).copy()
             self.pub_left_cmd.publish(msg)
         else:
+            self._last_cmd_right = np.asarray(q, dtype=np.float64).copy()
             self.pub_right_cmd.publish(msg)
+
+    def _slew_toward(self, current: np.ndarray, target: np.ndarray) -> np.ndarray:
+        max_step = max(1e-4, self.max_joint_vel) * self.dt
+        delta = np.asarray(target, dtype=np.float64) - np.asarray(current, dtype=np.float64)
+        mag = float(np.max(np.abs(delta)))
+        if mag <= max_step:
+            return np.asarray(target, dtype=np.float64).copy()
+        return np.asarray(current, dtype=np.float64) + delta * (max_step / mag)
+
+    def _filter_pose(self, prev, xyz: np.ndarray, quat: np.ndarray):
+        alpha = min(1.0, max(0.05, self.vr_pose_lpf))
+        if prev is None:
+            return xyz.copy(), quat.copy()
+        pxyz, pquat = prev
+        xyz_f = (1.0 - alpha) * pxyz + alpha * xyz
+        q = quat.copy()
+        if float(np.dot(pquat, q)) < 0.0:
+            q = -q
+        quat_f = (1.0 - alpha) * pquat + alpha * q
+        n = float(np.linalg.norm(quat_f))
+        if n < 1e-9:
+            quat_f = pquat
+        else:
+            quat_f = quat_f / n
+        return xyz_f, quat_f
+
+    def _grip_wants(self, side: str, homing: bool) -> bool:
+        if homing or self._shutting_down:
+            return False
+        pose = self._left_pose if side == "left" else self._right_pose
+        if pose is None:
+            return False
+        grip = self._left_grip if side == "left" else self._right_grip
+        active = self.active_left if side == "left" else self.active_right
+        if active:
+            return grip > self.grip_release_threshold
+        return grip > self.grip_threshold
+
+    def _engage_blend(self, t0) -> float:
+        if t0 is None:
+            return 1.0
+        duration = max(0.05, self.engage_blend_s)
+        alpha = (self._now() - t0) / duration
+        if alpha >= 1.0:
+            return 1.0
+        if alpha <= 0.0:
+            return 0.0
+        return float(alpha * alpha * (3.0 - 2.0 * alpha))
+
+    def _blend_quat(self, q0: np.ndarray, q1: np.ndarray, alpha: float) -> np.ndarray:
+        q1 = q1.copy()
+        if float(np.dot(q0, q1)) < 0.0:
+            q1 = -q1
+        q = (1.0 - alpha) * q0 + alpha * q1
+        n = float(np.linalg.norm(q))
+        if n < 1e-9:
+            return q0.copy()
+        return q / n
+
+    def _set_arm_q(self, side: str, q: np.ndarray) -> None:
+        if side == "left":
+            self.robot.state.q[LEFT_ARM_Q_SLICE] = q
+        else:
+            self.robot.state.q[RIGHT_ARM_Q_SLICE] = q
+
+    def _arm_q_from_solver(self, side: str) -> np.ndarray:
+        sl = LEFT_ARM_Q_SLICE if side == "left" else RIGHT_ARM_Q_SLICE
+        return np.asarray(self.robot.state.q[sl], dtype=np.float64).copy()
 
     def _update_hands_up(self, side: str) -> bool:
         """推进 hands_up 插值；返回 True 表示本周期该臂仍在复位中。"""
@@ -308,18 +410,17 @@ class IkTeleopNode(Node):
         alpha = (self._now() - home["t0"]) / duration
         if alpha >= 1.0:
             q = home["target"]
+            self._set_arm_q(side, q)
+            self.robot.update_kinematics()
             self._publish_arm_cmd(side, q)
             if side == "left":
-                self.robot.state.q[LEFT_ARM_Q_SLICE] = q
                 self._home_left = None
             else:
-                self.robot.state.q[RIGHT_ARM_Q_SLICE] = q
                 self._home_right = None
-            self.robot.update_kinematics()
             return False
-        # smoothstep
         s = alpha * alpha * (3.0 - 2.0 * alpha)
         q = (1.0 - s) * home["start"] + s * home["target"]
+        self._set_arm_q(side, q)
         self._publish_arm_cmd(side, q)
         return True
 
@@ -334,6 +435,8 @@ class IkTeleopNode(Node):
         self.ref_right = None
         self.ref_ctrl_left = None
         self.ref_ctrl_right = None
+        self._engage_left_t0 = None
+        self._engage_right_t0 = None
         self._home_left = None
         self._home_right = None
 
@@ -396,33 +499,6 @@ class IkTeleopNode(Node):
         client.send_goal_async(goal_msg)
         return pos, now
 
-    def _sync_from_joint_states(self):
-        """用 /joint_states 更新 Placo 的 q。"""
-        if self.joint_state is None:
-            return
-        with self._joint_state_lock:
-            names = list(self.joint_state.name)
-            pos = list(self.joint_state.position)
-        for i, name in enumerate(
-            [
-                "openarm_left_joint1", "openarm_left_joint2", "openarm_left_joint3",
-                "openarm_left_joint4", "openarm_left_joint5", "openarm_left_joint6",
-                "openarm_left_joint7",
-            ]
-        ):
-            if name in names:
-                self.robot.state.q[7 + i] = pos[names.index(name)]
-        for i, name in enumerate(
-            [
-                "openarm_right_joint1", "openarm_right_joint2", "openarm_right_joint3",
-                "openarm_right_joint4", "openarm_right_joint5", "openarm_right_joint6",
-                "openarm_right_joint7",
-            ]
-        ):
-            if name in names:
-                self.robot.state.q[16 + i] = pos[names.index(name)]
-        self.robot.update_kinematics()
-
     def _get_ee_pose(self, link: str):
         """获取末端 link 的世界位姿 (xyz, quat_wxyz)。"""
         T = self.robot.get_T_world_frame(link)
@@ -476,7 +552,6 @@ class IkTeleopNode(Node):
     def _timer_callback(self):
         if self._shutting_down:
             return
-        # 夹爪：扳机 0~1 映射为开口，节流发送 Action（与 IK 解算独立）
         self._last_left_gripper_goal, self._last_left_gripper_time = self._send_gripper_goal(
             self._action_left_gripper, self._left_gripper,
             self._last_left_gripper_goal, self._last_left_gripper_time,
@@ -489,36 +564,44 @@ class IkTeleopNode(Node):
         left_homing = self._update_hands_up("left")
         right_homing = self._update_hands_up("right")
 
-        want_left = (
-            not left_homing
-            and self._left_pose is not None
-            and self._left_grip > self.grip_threshold
-        )
-        want_right = (
-            not right_homing
-            and self._right_pose is not None
-            and self._right_grip > self.grip_threshold
-        )
+        want_left = self._grip_wants("left", left_homing)
+        want_right = self._grip_wants("right", right_homing)
 
-        # 未握把跟随时跳过 Placo QP（复位中的臂已在上面发命令）
+        # 未跟随的臂持续发布上一命令，避免控制器掉回全零/失力下垂
+        if self._seeded_from_joints:
+            if not want_left and not left_homing:
+                if self.active_left:
+                    self.active_left = False
+                    self.ref_left = None
+                    self.ref_ctrl_left = None
+                    self._engage_left_t0 = None
+                self._publish_arm_cmd("left", self._last_cmd_left)
+            if not want_right and not right_homing:
+                if self.active_right:
+                    self.active_right = False
+                    self.ref_right = None
+                    self.ref_ctrl_right = None
+                    self._engage_right_t0 = None
+                self._publish_arm_cmd("right", self._last_cmd_right)
+
         if not want_left and not want_right:
-            if self.active_left or self.active_right:
-                self.active_left = False
-                self.active_right = False
-                self.ref_left = None
-                self.ref_right = None
-                self.ref_ctrl_left = None
-                self.ref_ctrl_right = None
             return
 
-        self._sync_from_joint_states()
-        if self.joint_state is None:
-            return
+        # 用上一拍命令作为 IK 种子，不要每周期用滞后的 joint_states 重种子
+        self._set_arm_q("left", self._last_cmd_left)
+        self._set_arm_q("right", self._last_cmd_right)
+        self.robot.update_kinematics()
+
+        hold_left_q = self._last_cmd_left.copy()
+        hold_right_q = self._last_cmd_right.copy()
 
         if want_left and self._left_pose is not None:
             ctrl_xyz, ctrl_quat = self._left_pose
             if not self.active_left:
                 self.active_left = True
+                self._engage_left_t0 = self._now()
+                self._set_arm_q("left", self._last_cmd_left)
+                self.robot.update_kinematics()
                 self.ref_left = self._get_ee_pose("openarm_left_link7")
                 R_q = quat_from_rot(R_HEADSET_TO_WORLD)
                 self.ref_ctrl_left = (
@@ -533,18 +616,26 @@ class IkTeleopNode(Node):
                 self.ref_left[0], self.ref_left[1],
                 self.ref_ctrl_left[0], self.ref_ctrl_left[1],
             )
+            blend = self._engage_blend(self._engage_left_t0)
+            if blend < 1.0:
+                target_xyz = self.ref_left[0] + blend * (target_xyz - self.ref_left[0])
+                target_quat = self._blend_quat(self.ref_left[1], target_quat, blend)
             T = _quat_to_4x4(target_quat)
             T[:3, 3] = target_xyz
             self.left_task.T_world_frame = T
-        elif self.active_left and not left_homing:
-            self.active_left = False
-            self.ref_left = None
-            self.ref_ctrl_left = None
+            self.left_task.configure("left_ee", "soft", 1.0)
+        else:
+            T = self.robot.get_T_world_frame("openarm_left_link7")
+            self.left_task.T_world_frame = T
+            self.left_task.configure("left_ee", "soft", 1e-3)
 
         if want_right and self._right_pose is not None:
             ctrl_xyz, ctrl_quat = self._right_pose
             if not self.active_right:
                 self.active_right = True
+                self._engage_right_t0 = self._now()
+                self._set_arm_q("right", self._last_cmd_right)
+                self.robot.update_kinematics()
                 self.ref_right = self._get_ee_pose("openarm_right_link7")
                 R_q = quat_from_rot(R_HEADSET_TO_WORLD)
                 self.ref_ctrl_right = (
@@ -559,25 +650,49 @@ class IkTeleopNode(Node):
                 self.ref_right[0], self.ref_right[1],
                 self.ref_ctrl_right[0], self.ref_ctrl_right[1],
             )
+            blend = self._engage_blend(self._engage_right_t0)
+            if blend < 1.0:
+                target_xyz = self.ref_right[0] + blend * (target_xyz - self.ref_right[0])
+                target_quat = self._blend_quat(self.ref_right[1], target_quat, blend)
             T = _quat_to_4x4(target_quat)
             T[:3, 3] = target_xyz
             self.right_task.T_world_frame = T
-        elif self.active_right and not right_homing:
-            self.active_right = False
-            self.ref_right = None
-            self.ref_ctrl_right = None
+            self.right_task.configure("right_ee", "soft", 1.0)
+        else:
+            T = self.robot.get_T_world_frame("openarm_right_link7")
+            self.right_task.T_world_frame = T
+            self.right_task.configure("right_ee", "soft", 1e-3)
 
         try:
             self.solver.solve(True)
         except RuntimeError as e:
             self.get_logger().warn("IK solve failed: %s" % e)
+            if want_left and not left_homing:
+                self._publish_arm_cmd("left", self._last_cmd_left)
+            if want_right and not right_homing:
+                self._publish_arm_cmd("right", self._last_cmd_right)
             return
 
-        # 复位中的臂由插值独占命令，避免 IK 覆盖
+        # 未激活的臂保持上一命令，避免双臂 QP 把它拽走
+        if not want_left:
+            self._set_arm_q("left", hold_left_q)
+        if not want_right:
+            self._set_arm_q("right", hold_right_q)
+
         if not left_homing and want_left:
-            self._publish_arm_cmd("left", self.robot.state.q[LEFT_ARM_Q_SLICE])
+            q_ik = self._arm_q_from_solver("left")
+            if np.any(np.isnan(q_ik)):
+                self.get_logger().warn("IK NaN on left arm, holding last command")
+                self._publish_arm_cmd("left", self._last_cmd_left)
+            else:
+                self._publish_arm_cmd("left", self._slew_toward(self._last_cmd_left, q_ik))
         if not right_homing and want_right:
-            self._publish_arm_cmd("right", self.robot.state.q[RIGHT_ARM_Q_SLICE])
+            q_ik = self._arm_q_from_solver("right")
+            if np.any(np.isnan(q_ik)):
+                self.get_logger().warn("IK NaN on right arm, holding last command")
+                self._publish_arm_cmd("right", self._last_cmd_right)
+            else:
+                self._publish_arm_cmd("right", self._slew_toward(self._last_cmd_right, q_ik))
 
 def _quat_inverse(q):
     return np.array([q[0], -q[1], -q[2], -q[3]])

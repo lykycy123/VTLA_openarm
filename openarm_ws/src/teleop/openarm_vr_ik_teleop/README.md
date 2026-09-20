@@ -28,10 +28,14 @@
 - `gripper_closed_m` (float): 夹爪闭合时的关节位置 (m)，默认 0.0
 - `gripper_update_throttle_s` (float): 夹爪 Action 发送节流间隔 (s)，默认 0.1
 - `hands_up_duration_s` (float): 关节空间插值到 hands_up 的时长 (s)，默认 2.0
+- `max_joint_vel_rad_s` (float): IK 输出关节限速 (rad/s)，默认 1.5，抑制启动跳变
+- `vr_pose_lpf` (float): VR 位姿一阶低通系数 (0~1)，默认 0.22
+- `grip_release_threshold` (float): 握把松开阈值，默认 0.55（与 `grip_threshold` 形成滞回）
+- `engage_blend_s` (float): 握把激活后笛卡尔增量缓入时长 (s)，默认 0.45
 
 可通过环境变量覆盖：`IK_SCALE_FACTOR`、`IK_GRIP_THRESHOLD`。
 
-启动后双臂会自动插值到 MoveIt `hands_up`（joint4=2）。运行中按 **X** 复位左臂、**A** 复位右臂到同一位姿。结束 VR 遥操作（关终端 / Ctrl+C / 菜单 0）时双臂插值回到 MoveIt `home`（全零）。
+启动后双臂插值到 MoveIt `hands_up`。握把超过阈值后从当前末端做增量跟随，接手约 0.45 s 缓入，避免 hands_up 上刚握把时的抖动。运行中按 **X** 复位左臂、**A** 复位右臂到 `hands_up`。结束 VR 遥操作（关终端 / Ctrl+C / 菜单 0）时双臂插值回到 MoveIt `home`（全零）。
 
 ## 夹爪映射
 
