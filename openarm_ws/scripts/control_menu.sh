@@ -294,13 +294,14 @@ run_component() {
     camera_l)
       load_ros_environment || keep_terminal_open 1
       echo "[INFO] 启动左腕 D405..."
-      # D405 彩色走 depth_module。固定 800µs 会把画面打成黑屏，与右腕一样开自动曝光。
+      # D405 无 RGB。对齐头部 D435I：brightness=10，关 AE，曝光/增益按现场亮度对齐头部。
       ros2 launch realsense2_camera rs_launch.py \
         camera_name:=camera_l \
         depth_module.color_profile:=640x480x30 \
-        depth_module.enable_auto_exposure:=true \
-        depth_module.exposure:=2000 \
-        depth_module.gain:=16 \
+        depth_module.enable_auto_exposure:=false \
+        depth_module.exposure:=10000 \
+        depth_module.gain:=32 \
+        depth_module.brightness:=10 \
         enable_depth:=false \
         initial_reset:=true \
         serial_no:=_260322278361 || status=$?
@@ -323,13 +324,14 @@ run_component() {
       load_ros_environment || keep_terminal_open 1
       sleep 2
       echo "[INFO] 启动右腕 D405..."
-      # D405 彩色走 depth_module。增益下限是 16，再低驱动会拒收。
+      # D405 无 RGB。对齐头部 D435I：brightness=10，关 AE，曝光/增益按现场亮度对齐头部。
       ros2 launch realsense2_camera rs_launch.py \
         camera_name:=camera_r \
         depth_module.color_profile:=640x480x30 \
-        depth_module.enable_auto_exposure:=true \
-        depth_module.exposure:=2000 \
-        depth_module.gain:=16 \
+        depth_module.enable_auto_exposure:=false \
+        depth_module.exposure:=10000 \
+        depth_module.gain:=32 \
+        depth_module.brightness:=10 \
         enable_depth:=false \
         initial_reset:=true \
         serial_no:=_260322276489 || status=$?

@@ -21,11 +21,11 @@ install -m 644 "${rules_src}" "${rules_dst}"
 udevadm control --reload-rules
 udevadm trigger --subsystem-match=net --action=add
 
-# 尽量重新枚举当前 CAN 设备，使新名称立即生效。
-modprobe -r gs_usb 2>/dev/null || true
-modprobe -r peak_usb 2>/dev/null || true
+# 不要 modprobe -r：菜单 11 会与「Bringup All CAN」并行，卸载 gs_usb
+# 会拆掉 can2，bringup 侧只能看到 USB 设备、看不到网卡。
 modprobe peak_usb 2>/dev/null || true
 modprobe gs_usb 2>/dev/null || true
+udevadm trigger --subsystem-match=net --action=add
 
 sleep 1
 

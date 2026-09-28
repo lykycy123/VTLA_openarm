@@ -43,6 +43,10 @@ print_can_diagnostics() {
   fi
 }
 
+chassis_usb_present() {
+  lsusb 2>/dev/null | grep -qiE '1d50:606f|16d0:117e|0483:5740'
+}
+
 find_can_by_driver() {
   local want_driver="$1"
   local iface=""
@@ -54,10 +58,32 @@ find_can_by_driver() {
     driver="$(basename "$(readlink -f "${iface}/device/driver")")"
     if [[ "${driver}" == "${want_driver}" ]]; then
       basename "${iface}"
+      shopt -u nullglob
       return 0
     fi
   done
   shopt -u nullglob
+  return 1
+}
+
+# 菜单 11 会并行跑「安装绑定」：那边 modprobe -r gs_usb 会把 can2 拆掉，
+# USB 设备还在，SocketCAN 接口要等驱动重新绑定。机械臂 PEAK 往往先就绪。
+wait_for_gs_usb_iface() {
+  local i=0
+  local found=""
+
+  for i in {1..40}; do
+    found="$(find_can_by_driver gs_usb || true)"
+    if [[ -n "${found}" ]]; then
+      printf '%s\n' "${found}"
+      return 0
+    fi
+    if (( i == 1 || i == 10 || i == 20 )); then
+      modprobe gs_usb 2>/dev/null || true
+      udevadm trigger --subsystem-match=net --action=add 2>/dev/null || true
+    fi
+    sleep 0.25
+  done
   return 1
 }
 
@@ -167,10 +193,16 @@ bringup_chassis() {
       return 1
     fi
   else
-    iface="$(find_can_by_driver gs_usb || true)"
+    echo "[INFO] 等待底盘 gs_usb 接口（USB 已插入时可能仍在重新绑定）..."
+    iface="$(wait_for_gs_usb_iface || true)"
     if [[ -z "${iface}" ]]; then
-      echo "[错误] 未找到底盘 USB-CAN（gs_usb）。" >&2
-      echo "请插入底盘适配器；不要再把 peak_usb 的 can0 改名为 can2。" >&2
+      if chassis_usb_present; then
+        echo "[错误] USB 上已有底盘适配器（如 1d50:606f），但内核尚未生成 gs_usb 网卡。" >&2
+        echo "请稍后重跑菜单 2，或重新插拔底盘 USB-CAN；不要把 peak_usb 改名为 can2。" >&2
+      else
+        echo "[错误] 未找到底盘 USB-CAN（gs_usb）。" >&2
+        echo "请插入底盘适配器；不要再把 peak_usb 的 can0 改名为 can2。" >&2
+      fi
       print_can_diagnostics >&2
       return 1
     fi

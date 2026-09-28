@@ -66,7 +66,7 @@ class GoHomeNode(Node):
         msg.data = [float(x) for x in q]
         pub.publish(msg)
 
-    def run(self, duration_s: float = 2.5) -> None:
+    def run(self, duration_s: float = 7.0) -> None:
         deadline = time.monotonic() + 2.0
         while self._joint_state is None and time.monotonic() < deadline:
             rclpy.spin_once(self, timeout_sec=0.05)

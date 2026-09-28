@@ -74,11 +74,12 @@ launch_cam()
     # D435I 独立 RGB：略提亮；自动曝光保持开启。
     extra_args+=("rgb_camera.brightness:=10")
   elif [[ "$cam_name" == "camera_l" || "$cam_name" == "camera_r" ]]; then
-    # D405 彩色走 depth_module（无独立 RGB）。固定 800µs 会黑屏，保持自动曝光。
+    # D405 无独立 RGB。对齐头部：brightness=10，关 AE，曝光/增益按头部画面亮度标定。
     extra_args+=(
-      "depth_module.enable_auto_exposure:=true"
-      "depth_module.exposure:=2000"
-      "depth_module.gain:=16"
+      "depth_module.enable_auto_exposure:=false"
+      "depth_module.exposure:=10000"
+      "depth_module.gain:=32"
+      "depth_module.brightness:=10"
     )
   fi
 
