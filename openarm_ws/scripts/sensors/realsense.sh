@@ -71,7 +71,15 @@ launch_cam()
   local extra_args=()
 
   if [[ "$cam_name" == "camera_h" ]]; then
+    # D435I 独立 RGB：略提亮；自动曝光保持开启。
     extra_args+=("rgb_camera.brightness:=10")
+  elif [[ "$cam_name" == "camera_l" || "$cam_name" == "camera_r" ]]; then
+    # D405 彩色走 depth_module（无独立 RGB）。固定 800µs 会黑屏，保持自动曝光。
+    extra_args+=(
+      "depth_module.enable_auto_exposure:=true"
+      "depth_module.exposure:=2000"
+      "depth_module.gain:=16"
+    )
   fi
 
   if ! serial_is_set "$raw_serial"; then

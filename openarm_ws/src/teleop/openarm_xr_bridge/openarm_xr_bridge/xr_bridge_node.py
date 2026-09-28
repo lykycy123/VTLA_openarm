@@ -25,7 +25,7 @@ class XrBridgeNode(Node):
         super().__init__("xr_bridge_node")
 
         # 30Hz 足够遥操作；全身 VR（臂+底盘）时比 50Hz 更省 CPU/DDS
-        self.declare_parameter("publish_rate", 30.0)
+        self.declare_parameter("publish_rate", 60.0)
         self.declare_parameter("frame_id", "headset_world")
         publish_rate = self.get_parameter("publish_rate").value
         self.frame_id = self.get_parameter("frame_id").value

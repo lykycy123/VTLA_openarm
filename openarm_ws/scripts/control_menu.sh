@@ -40,6 +40,37 @@ keep_terminal_open() {
   exit "${status}"
 }
 
+# gnome-terminal 会继承菜单进程的 conda base（常为 Python 3.13）。
+# ROS Humble 的 rclpy 只提供 cp310，必须在 source ROS 前退回 3.10。
+leave_conda_if_not_openarm() {
+  if [[ -z "${CONDA_PREFIX:-}" || "${CONDA_DEFAULT_ENV:-}" == "openarm" ]]; then
+    return 0
+  fi
+
+  local conda_sh=""
+  for conda_sh in \
+    "${HOME}/anaconda3/etc/profile.d/conda.sh" \
+    "${HOME}/miniconda3/etc/profile.d/conda.sh" \
+    "/opt/conda/etc/profile.d/conda.sh"; do
+    if [[ -f "${conda_sh}" ]]; then
+      # shellcheck disable=SC1090
+      source "${conda_sh}"
+      break
+    fi
+  done
+
+  while [[ -n "${CONDA_PREFIX:-}" && "${CONDA_DEFAULT_ENV:-}" != "openarm" ]]; do
+    conda deactivate || break
+  done
+
+  local pyver=""
+  pyver="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
+  if [[ "${pyver}" != "3.10" ]]; then
+    unset PYTHONHOME PYTHONPATH
+    export PATH="/usr/bin:/bin:${PATH}"
+  fi
+}
+
 load_ros_environment() {
   if [[ ! -f "${project_dir}/source_all.sh" ]]; then
     echo "[错误] 未找到 ${project_dir}/source_all.sh" >&2
@@ -48,8 +79,28 @@ load_ros_environment() {
 
   # ROS setup.bash 会读未定义变量，不能在 set -u 下 source。
   set +u
+  leave_conda_if_not_openarm
   # shellcheck disable=SC1091
   source "${project_dir}/source_all.sh"
+}
+
+wait_for_can_interface() {
+  local iface="${1:-can2}"
+  local flags=""
+  local i=0
+  # SocketCAN 的 operstate 经常是 UNKNOWN，不能用 `state UP` 判断。
+  for i in {1..50}; do
+    if [[ -f "/sys/class/net/${iface}/flags" ]]; then
+      flags="$(cat "/sys/class/net/${iface}/flags" 2>/dev/null || echo 0)"
+      if (( flags & 0x1 )); then
+        echo "[INFO] ${iface} 已就绪。"
+        return 0
+      fi
+    fi
+    sleep 0.2
+  done
+  echo "[错误] 等待 ${iface} 就绪超时（约 10s）。请确认 CAN tab 已成功启动。" >&2
+  return 1
 }
 
 activate_openarm_environment() {
@@ -65,8 +116,8 @@ activate_openarm_environment() {
 
   local conda_sh=""
   for conda_sh in \
-    "${HOME}/miniconda3/etc/profile.d/conda.sh" \
     "${HOME}/anaconda3/etc/profile.d/conda.sh" \
+    "${HOME}/miniconda3/etc/profile.d/conda.sh" \
     "/opt/conda/etc/profile.d/conda.sh"; do
     if [[ -f "${conda_sh}" ]]; then
       # shellcheck disable=SC1090
@@ -86,6 +137,31 @@ activate_openarm_environment() {
   return 1
 }
 
+can_bringup_script="${script_dir}/can/bringup_can.sh"
+can_bindings_script="${script_dir}/can/install_can_bindings.sh"
+can_passwordless_script="${script_dir}/can/install_passwordless_sudo.sh"
+
+can_sudo_ok() {
+  sudo -n "${can_bringup_script}" --help >/dev/null 2>&1
+}
+
+ensure_can_passwordless_sudo() {
+  if can_sudo_ok; then
+    return 0
+  fi
+  echo "[INFO] CAN 启动需要 sudo。将安装免密规则（只需输入一次密码，之后菜单 1/2/11–14 不再询问）。"
+  if ! bash "${can_passwordless_script}"; then
+    echo "[错误] 免密 sudo 未配置成功。新开的 CAN 终端无法交互输入密码。" >&2
+    return 1
+  fi
+  if ! can_sudo_ok; then
+    echo "[错误] 免密规则已写入，但 sudo -n 仍失败。请新开一个终端后再试。" >&2
+    return 1
+  fi
+  echo "[INFO] CAN sudo 免密已生效。"
+  return 0
+}
+
 run_component() {
   local component="${1:-}"
   local pid_file="${state_dir}/${component}.pid"
@@ -100,7 +176,7 @@ run_component() {
   case "${component}" in
     can_install)
       echo "[INFO] 安装 CAN 持久绑定（udev，通常只需一次）..."
-      sudo "${script_dir}/can/install_can_bindings.sh" || status=$?
+      sudo -n "${can_bindings_script}" || status=$?
       if (( status == 0 )); then
         echo
         echo "[INFO] CAN 绑定安装完成。日常重启或插拔后请执行菜单 2。"
@@ -112,7 +188,7 @@ run_component() {
 
     can_bringup)
       echo "[INFO] 启动全部 CAN：can0/can1（OpenArm）+ can2（底盘）..."
-      sudo "${script_dir}/can/bringup_can.sh" --all || status=$?
+      sudo -n "${can_bringup_script}" --all || status=$?
       if (( status == 0 )); then
         echo
         echo "[INFO] CAN 已就绪。可继续菜单 3/6 启动 OpenArm 或底盘驱动。"
@@ -148,12 +224,29 @@ run_component() {
       ;;
 
     pc_service)
-      if [[ ! -f /opt/apps/roboticsservice/runService.sh ]]; then
-        echo "[错误] 未找到 /opt/apps/roboticsservice/runService.sh" >&2
+      local rs_dir="/opt/apps/roboticsservice"
+      # 进程名超过 15 字符会被截断，pgrep -x RoboticsServiceProcess 匹配不到。
+      if [[ ! -x "${rs_dir}/RoboticsServiceProcess" ]]; then
+        echo "[错误] 未找到 ${rs_dir}/RoboticsServiceProcess" >&2
         keep_terminal_open 1
       fi
       echo "[INFO] 启动 XRoboToolkit PC Service..."
-      bash /opt/apps/roboticsservice/runService.sh || status=$?
+      # 不要再开桌面那个 Unity 窗口（run3D.sh / RobotLinuxDemo）。
+      # 它和 xr_bridge 都连本机 60061，窗口会把头显数据独占走，
+      # 机械臂侧位姿和握把会一直是 0。PICO 连上后台服务即可。
+      export LD_LIBRARY_PATH="${rs_dir}:${rs_dir}/lib:${rs_dir}/SDK/x64:${LD_LIBRARY_PATH:-}"
+      export QT_PLUGIN_PATH="${rs_dir}/plugins/:${QT_PLUGIN_PATH:-}"
+      export QT_QML_PATH="${rs_dir}/qml/:${QT_QML_PATH:-}"
+      cd "${rs_dir}"
+      if pgrep -f '[/]RoboticsServiceProcess' >/dev/null 2>&1; then
+        echo "[INFO] RoboticsServiceProcess 已在运行，本终端保持占用。"
+        while pgrep -f '[/]RoboticsServiceProcess' >/dev/null 2>&1; do
+          sleep 2
+        done
+        status=1
+      else
+        exec ./RoboticsServiceProcess || keep_terminal_open $?
+      fi
       ;;
 
     arm_vr)
@@ -166,8 +259,9 @@ run_component() {
 
     chassis_driver)
       load_ros_environment || keep_terminal_open 1
+      echo "[INFO] Python: $(command -v python3) ($(python3 --version 2>&1))"
       echo "[INFO] 启动 Ranger Mini 3.0 底盘驱动（can2）..."
-      echo "[INFO] 请确认已先通过菜单 2 启动 CAN。"
+      wait_for_can_interface can2 || keep_terminal_open 1
       ros2 launch ranger_bringup ranger_mini_v3.launch.py port_name:=can2 || status=$?
       ;;
 
@@ -200,9 +294,13 @@ run_component() {
     camera_l)
       load_ros_environment || keep_terminal_open 1
       echo "[INFO] 启动左腕 D405..."
+      # D405 彩色走 depth_module。固定 800µs 会把画面打成黑屏，与右腕一样开自动曝光。
       ros2 launch realsense2_camera rs_launch.py \
         camera_name:=camera_l \
         depth_module.color_profile:=640x480x30 \
+        depth_module.enable_auto_exposure:=true \
+        depth_module.exposure:=2000 \
+        depth_module.gain:=16 \
         enable_depth:=false \
         initial_reset:=true \
         serial_no:=_260322278361 || status=$?
@@ -225,9 +323,13 @@ run_component() {
       load_ros_environment || keep_terminal_open 1
       sleep 2
       echo "[INFO] 启动右腕 D405..."
+      # D405 彩色走 depth_module。增益下限是 16，再低驱动会拒收。
       ros2 launch realsense2_camera rs_launch.py \
         camera_name:=camera_r \
         depth_module.color_profile:=640x480x30 \
+        depth_module.enable_auto_exposure:=true \
+        depth_module.exposure:=2000 \
+        depth_module.gain:=16 \
         enable_depth:=false \
         initial_reset:=true \
         serial_no:=_260322276489 || status=$?
@@ -548,7 +650,7 @@ start_first_boot_window() {
     "Bringup All CAN"
   )
   echo "[INFO] 首次启动：安装 CAN 绑定 → 启动全部 CAN（同一终端多 tab）。"
-  echo "[提示] CAN 相关已可免密 sudo（若仍提示密码，请执行一次：bash openarm_ws/scripts/can/install_passwordless_sudo.sh）。"
+  ensure_can_passwordless_sudo || return 1
   start_components_window components titles "首次启动" 0
 }
 
@@ -571,6 +673,7 @@ start_full_body_vr_window() {
     "Ranger VR Control"
   )
   prepare_for_vr_stack || return 1
+  ensure_can_passwordless_sudo || return 1
   echo "[INFO] 全身 VR：CAN → 臂 VR(5) → 底盘 VR(8)（同一终端多 tab）。"
   echo "[提示] 请先确认 CAN tab 接口已就绪，再使用 VR。"
   start_components_window components titles "全身 VR" 1
@@ -605,6 +708,7 @@ start_data_collection_stack_window() {
     "Data Collection"
   )
   prepare_for_vr_stack || return 1
+  ensure_can_passwordless_sudo || return 1
   echo "[INFO] 数据采集：CAN → VR → 相机 → 采集（同一终端多 tab）。"
   echo "[提示] 先完成 CAN tab；话题就绪后在 Data Collection 按 SPACE 录制。"
   start_components_window components titles "数据采集" 1
@@ -633,6 +737,7 @@ start_data_replay_stack_window() {
     "Data Replay"
   )
   prepare_for_replay_stack || return 1
+  ensure_can_passwordless_sudo || return 1
   echo "[INFO] 数据回放：CAN → 底盘 → FP 驱动 → 三相机 → RViz → replay（同一终端多 tab）。"
   echo "[提示] 先完成 CAN tab；驱动与相机起来后在 Data Replay 按 SPACE 播放。"
   start_components_window components titles "数据回放" 0
@@ -668,18 +773,50 @@ close_terminal_by_title() {
   fi
 }
 
+stop_arm_command_publishers() {
+  # 停掉仍在写 forward_position /commands 的节点，避免与 go_home 对打。
+  local pid=""
+  local -a pids=()
+  local alive=0
+
+  while read -r pid; do
+    [[ "${pid}" =~ ^[0-9]+$ ]] || continue
+    pids+=("${pid}")
+  done < <(pgrep -f 'openarm_vr_ik_teleop[.]ik_teleop_node|data_collection/replay[.]py' 2>/dev/null || true)
+
+  ((${#pids[@]})) || return 0
+
+  echo "[INFO] 先停止遥操作/回放发布（PID: ${pids[*]}），再回 home..."
+  kill -TERM "${pids[@]}" 2>/dev/null || true
+  for _ in $(seq 1 30); do
+    alive=0
+    for pid in "${pids[@]}"; do
+      pid_is_running "${pid}" && alive=1
+    done
+    ((alive == 0)) && break
+    sleep 0.1
+  done
+  for pid in "${pids[@]}"; do
+    pid_is_running "${pid}" && kill -KILL "${pid}" 2>/dev/null || true
+  done
+  sleep 0.2
+}
+
 return_arms_home_if_needed() {
-  # 必须在杀掉 arm_vr/bringup 之前调用，否则 forward_position 已死，无法回 home。
+  # 必须在杀掉 bringup 之前调用，否则 forward_position 已死，无法回 home。
   if ! component_is_running arm_vr \
     && ! component_is_running arm_bringup \
     && ! component_is_running arm_bringup_fp; then
     return 0
   fi
+  stop_arm_command_publishers
   echo "[INFO] 关闭前先将机械臂回到 home（驱动保持运行）..."
   if ! bash "${script_dir}/teleop/go_home_arms.sh"; then
     echo "[警告] 回 home 失败或超时，将继续关闭终端。" >&2
     return 1
   fi
+  mkdir -p "${state_dir}"
+  printf '%s\n' "1" >"${state_dir}/home_done"
   return 0
 }
 
@@ -776,7 +913,7 @@ stop_all() {
     close_terminal_by_title "${title}"
     rm -f "${title_file}"
   done
-  rm -f "${state_dir}/vr_teleop_window.active"
+  rm -f "${state_dir}/vr_teleop_window.active" "${state_dir}/home_done"
   shopt -u nullglob
   echo "[INFO] 已全部关闭。"
 }
@@ -825,7 +962,7 @@ show_menu() {
   0. 关闭本菜单启动的全部终端并退出
 ------------------------------------------
 推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–9。
-提示：CAN 免密见 scripts/can/install_passwordless_sudo.sh。
+提示：首次 CAN 会要一次 sudo 密码以安装免密，之后启动不再询问。
 提示：VR 臂启动到 hands_up，握把跟随；X/A=复位；结束或按 0 时回 home。
 提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
 提示：启动真机前请确认急停、CAN 接口及工作空间安全。
@@ -881,9 +1018,11 @@ while true; do
       start_data_replay_stack_window
       ;;
     1)
+      ensure_can_passwordless_sudo || continue
       start_terminal can_install "Install CAN Bindings"
       ;;
     2)
+      ensure_can_passwordless_sudo || continue
       start_terminal can_bringup "Bringup All CAN"
       ;;
     3)

@@ -20,6 +20,29 @@ usage() {
 EOF
 }
 
+print_can_diagnostics() {
+  echo
+  echo "诊断："
+  echo "  当前 CAN 接口："
+  if ! ip -br link show type can 2>/dev/null | grep -q .; then
+    echo "    （无）"
+  else
+    ip -br link show type can 2>/dev/null | sed 's/^/    /'
+  fi
+  echo "  USB PEAK（Vendor 0c72）："
+  if lsusb 2>/dev/null | grep -qi '0c72:'; then
+    lsusb 2>/dev/null | grep -i '0c72:' | sed 's/^/    /'
+  else
+    echo "    未检测到。请插入 PCAN-USB Pro FD / 双通道 USB-CANFD 卡。"
+  fi
+  echo "  USB 底盘适配器（gs_usb 常见 ID）："
+  if lsusb 2>/dev/null | grep -qiE '1d50:606f|16d0:117e|0483:5740'; then
+    lsusb 2>/dev/null | grep -iE '1d50:606f|16d0:117e|0483:5740' | sed 's/^/    /'
+  else
+    echo "    未检测到。请插入 Ranger USB-CAN（松灵/candleLight 一类）。"
+  fi
+}
+
 find_can_by_driver() {
   local want_driver="$1"
   local iface=""
@@ -74,8 +97,14 @@ bringup_arm() {
   shopt -u nullglob
 
   if ((${#peak_ifaces[@]} < 2)); then
-    echo "[错误] 未找到 OpenArm 的 PEAK USB（peak_usb）双通道接口。" >&2
-    echo "请插入 PCAN-USB Pro FD，并确认 udev 绑定已安装。" >&2
+    echo "[错误] 未找到 OpenArm 的 PEAK USB（peak_usb）双通道接口（当前 ${#peak_ifaces[@]} 个）。" >&2
+    if lsusb 2>/dev/null | grep -qi '0c72:'; then
+      echo "USB 上已有 PEAK 设备，但 SocketCAN 通道不足。请检查 peak_usb 是否被占用，或重新插拔适配器。" >&2
+    else
+      echo "USB 总线上看不到 PEAK 设备（Vendor 0c72）。这不是 udev 问题：规则已安装。" >&2
+      echo "请插入 PCAN-USB Pro FD（或 OpenArm 双通道 USB-CANFD 卡）后再运行菜单 2。" >&2
+    fi
+    print_can_diagnostics >&2
     return 1
   fi
 
@@ -142,6 +171,7 @@ bringup_chassis() {
     if [[ -z "${iface}" ]]; then
       echo "[错误] 未找到底盘 USB-CAN（gs_usb）。" >&2
       echo "请插入底盘适配器；不要再把 peak_usb 的 can0 改名为 can2。" >&2
+      print_can_diagnostics >&2
       return 1
     fi
     ensure_name "${iface}" can2

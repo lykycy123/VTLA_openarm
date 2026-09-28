@@ -74,7 +74,7 @@ class IkTeleopNode(Node):
     def __init__(self):
         super().__init__("ik_teleop_node")
 
-        self.declare_parameter("scale_factor", 0.8)
+        self.declare_parameter("scale_factor", 1.0)
         self.declare_parameter("control_rate", 50.0)
         self.declare_parameter("grip_threshold", 0.9)
         self.declare_parameter("gripper_open_m", 0.044)
@@ -82,10 +82,10 @@ class IkTeleopNode(Node):
         self.declare_parameter("gripper_update_throttle_s", 0.1)
         self.declare_parameter("hands_up_duration_s", 2.0)
         self.declare_parameter("home_duration_s", 2.5)
-        self.declare_parameter("max_joint_vel_rad_s", 1.5)
-        self.declare_parameter("vr_pose_lpf", 0.22)
+        self.declare_parameter("max_joint_vel_rad_s", 3.0)
+        self.declare_parameter("vr_pose_lpf", 0.50)
         self.declare_parameter("grip_release_threshold", 0.55)
-        self.declare_parameter("engage_blend_s", 0.45)
+        self.declare_parameter("engage_blend_s", 0.20)
         scale = float(os.environ.get("IK_SCALE_FACTOR", self.get_parameter("scale_factor").value))
         rate = float(self.get_parameter("control_rate").value)
         self.dt = 1.0 / max(1.0, rate)
@@ -424,28 +424,26 @@ class IkTeleopNode(Node):
         self._publish_arm_cmd(side, q)
         return True
 
+    def stop_publishing(self) -> None:
+        """立刻停止周期发布，避免退出时与外部 go_home 抢同一控制器。"""
+        self._shutting_down = True
+        self.active_left = False
+        self.active_right = False
+        self._home_left = None
+        self._home_right = None
+        try:
+            self.timer.cancel()
+        except Exception:
+            pass
+
     def go_home_blocking(self) -> None:
         """退出前将双臂插值到 MoveIt home（全零），阻塞直到完成。"""
         if self._shutting_down:
             return
-        self._shutting_down = True
-        self.active_left = False
-        self.active_right = False
-        self.ref_left = None
-        self.ref_right = None
-        self.ref_ctrl_left = None
-        self.ref_ctrl_right = None
-        self._engage_left_t0 = None
-        self._engage_right_t0 = None
-        self._home_left = None
-        self._home_right = None
+        self.stop_publishing()
 
-        start_l = self._arm_q_from_joint_states("left", HOME_LEFT)
-        start_r = self._arm_q_from_joint_states("right", HOME_RIGHT)
-        if start_l is None:
-            start_l = HOME_LEFT.copy()
-        if start_r is None:
-            start_r = HOME_RIGHT.copy()
+        start_l = self._last_cmd_left.copy()
+        start_r = self._last_cmd_right.copy()
 
         duration = max(0.5, self.home_duration_s)
         self.get_logger().info(
@@ -462,20 +460,11 @@ class IkTeleopNode(Node):
             s = alpha * alpha * (3.0 - 2.0 * alpha)
             self._publish_arm_cmd("left", (1.0 - s) * start_l + s * HOME_LEFT)
             self._publish_arm_cmd("right", (1.0 - s) * start_r + s * HOME_RIGHT)
-            try:
-                rclpy.spin_once(self, timeout_sec=0.0)
-            except Exception:
-                pass
             time.sleep(dt)
 
-        # 多发几次终点，提高退出瞬间命令被控制器吃到的概率
         for _ in range(5):
             self._publish_arm_cmd("left", HOME_LEFT)
             self._publish_arm_cmd("right", HOME_RIGHT)
-            try:
-                rclpy.spin_once(self, timeout_sec=0.0)
-            except Exception:
-                pass
             time.sleep(0.05)
         self.get_logger().info("Both arms at home.")
 
@@ -724,13 +713,12 @@ def main(args=None):
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        # 回 home 由菜单 0 / launch 脚本在本节点停止发布之后独占执行。
+        # 这里若再插值，会与 go_home_arms 抢 /commands，表现为剧烈抖动并停在 hands_up。
         try:
-            node.go_home_blocking()
-        except Exception as exc:
-            try:
-                node.get_logger().error("Failed to go home on exit: %s" % exc)
-            except Exception:
-                pass
+            node.stop_publishing()
+        except Exception:
+            pass
         node.destroy_node()
         try:
             rclpy.shutdown()

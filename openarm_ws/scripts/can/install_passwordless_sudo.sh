@@ -9,8 +9,11 @@ workspace_scripts="$(cd "${script_dir}/.." && pwd)"
 repo_root="$(cd "${script_dir}/../../.." && pwd)"
 
 target_user="${SUDO_USER:-${USER}}"
-if [[ "${target_user}" == "root" ]]; then
-  echo "[错误] 请用普通用户执行：bash ${script_dir}/install_passwordless_sudo.sh" >&2
+if [[ "${EUID}" -eq 0 && ( -z "${target_user}" || "${target_user}" == "root" ) ]]; then
+  target_user="$(stat -c '%U' "${repo_root}" 2>/dev/null || true)"
+fi
+if [[ -z "${target_user}" || "${target_user}" == "root" ]]; then
+  echo "[错误] 无法确定普通用户。请用登录用户执行：bash ${script_dir}/install_passwordless_sudo.sh" >&2
   exit 1
 fi
 

@@ -116,19 +116,24 @@ fi
 _FAKE_ARG="true"
 $USE_FAKE || _FAKE_ARG="false"
 
-# 清理函数：驱动仍在时先回 home，再停 ik / bringup
+# 清理函数：先停 IK 发布，再独占回 home，最后停 bringup。
+# 不可在 IK 仍发布 hands_up 时并行 go_home，否则会剧烈抖动并停在 hands_up。
 _cleanup() {
   trap - SIGINT SIGTERM EXIT
   echo "[INFO] 正在关闭 VR 遥操作（机械臂将回到 home）..."
-  # 优先独立回 home（不依赖 ik 进程是否还能跑完）
-  if [ -n "${_BRINGUP_PID:-}" ] && kill -0 "${_BRINGUP_PID}" 2>/dev/null; then
-    bash "${_SCRIPT_DIR}/go_home_arms.sh" || true
+  if [ -n "${_IK_PID:-}" ] && kill -0 "${_IK_PID}" 2>/dev/null; then
+    kill -TERM "${_IK_PID}" 2>/dev/null || true
+    for _ in $(seq 1 30); do
+      kill -0 "${_IK_PID}" 2>/dev/null || break
+      sleep 0.1
+    done
+    kill -KILL "${_IK_PID}" 2>/dev/null || true
   fi
-  kill -TERM ${_IK_PID:-} 2>/dev/null || true
-  for _ in $(seq 1 30); do
-    kill -0 "${_IK_PID:-}" 2>/dev/null || break
-    sleep 0.1
-  done
+  if [ -n "${_BRINGUP_PID:-}" ] && kill -0 "${_BRINGUP_PID}" 2>/dev/null; then
+    if [ ! -f "/tmp/rbm-openarm-control-${UID}/home_done" ]; then
+      bash "${_SCRIPT_DIR}/go_home_arms.sh" || true
+    fi
+  fi
   kill ${_BRINGUP_PID:-} ${_XR_PID:-} ${_IK_PID:-} 2>/dev/null || true
   wait ${_BRINGUP_PID:-} ${_XR_PID:-} ${_IK_PID:-} 2>/dev/null || true
   exit 0

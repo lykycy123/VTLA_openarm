@@ -102,7 +102,7 @@ cd ~/RBM_openarm
   0. 关闭本菜单启动的全部终端并退出
 ------------------------------------------
 推荐：日常用 11（仅首次）/12/13/14；需拆分时再用 1–9。
-提示：CAN 建议先配免密 sudo（见 §7）。
+提示：CAN 建议先配免密 sudo（见 §7）；菜单 1/2/11–14 会在主窗口安装一次，之后不再要密码。
 提示：VR 臂启动到 hands_up，握把跟随；X/A=复位；结束或按 0 时回 home。
 提示：回放(14)勿与 VR/MoveIt 同时开；采集数据在 datasets/。
 提示：启动真机前请确认急停、CAN 接口及工作空间安全。
@@ -814,6 +814,8 @@ openarm_ws/src/chassis/rbm_base_control/config/base_controller.yaml
 | `camera_l` | 左腕 D405 | `260322278361` | 640×480@30 |
 | `camera_h` | 胸前 D435I | `134222076235` | 1280×720@30 |
 | `camera_r` | 右腕 D405 | `260322276489` | 640×480@30 |
+
+D405 彩色走 `depth_module`（无独立 RGB）。双腕默认**关闭自动曝光**，固定 `exposure:=800`、`gain:=16`（此前 AE 上限对已开流节点常不生效，画面会“怎么改都一样”）。头部 D435I 仍用 `rgb_camera` 自动曝光，并设 `brightness:=10`。若仍偏亮/偏暗，改 `realsense.sh` / 菜单 9 的 `depth_module.exposure` 后需**重启相机节点**。
 
 前置：已安装 `ros-humble-librealsense2`、`ros-humble-diagnostic-updater`、`ros-humble-compressed-image-transport`（见 [§3.2](#32-apt-依赖)）。
 

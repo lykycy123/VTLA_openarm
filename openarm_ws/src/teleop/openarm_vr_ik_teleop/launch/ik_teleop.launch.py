@@ -18,7 +18,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             "scale_factor",
-            default_value="0.8",
+            default_value="1.0",
             description="VR delta to robot motion scale (0.5~1.0).",
         ),
         DeclareLaunchArgument(
