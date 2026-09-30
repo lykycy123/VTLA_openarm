@@ -59,7 +59,7 @@ ros2 topic list | grep forward
 
 ```bash
 conda activate openarm
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm/third_party/XRoboToolkit-Teleop-Sample-Python
+cd ~/Medibot_openarm/third_party/XRoboToolkit-Teleop-Sample-Python
 python scripts/simulation/teleop_dual_ur5e_mujoco.py
 ```
 
@@ -110,7 +110,7 @@ python -c "import xrobotoolkit_sdk; print('OK')"
 
 ```bash
 conda activate openarm
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws
+cd ~/Medibot_openarm/openarm_ws
 colcon build --packages-select openarm_xr_bridge
 ```
 
@@ -122,8 +122,8 @@ colcon build --packages-select openarm_xr_bridge
 
 ```bash
 conda activate openarm
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
-~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/openarm_xr_bridge/share/openarm_xr_bridge/scripts/run_xr_bridge.sh
+source ~/Medibot_openarm/openarm_ws/install/setup.bash
+~/Medibot_openarm/openarm_ws/install/openarm_xr_bridge/share/openarm_xr_bridge/scripts/run_xr_bridge.sh
 ```
 
 预期：打印 `XRoboToolkit SDK initialized.`、`XR Bridge node started, publishing at 50.0 Hz`，无崩溃。
@@ -201,7 +201,7 @@ pip install placo
 ### 2.2 编译
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws
+cd ~/Medibot_openarm/openarm_ws
 colcon build --packages-select openarm_vr_ik_teleop
 ```
 
@@ -211,8 +211,8 @@ colcon build --packages-select openarm_vr_ik_teleop
 
 ```bash
 conda activate openarm
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
-~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/openarm_vr_ik_teleop/share/openarm_vr_ik_teleop/scripts/run_check_urdf_placo.sh
+source ~/Medibot_openarm/openarm_ws/install/setup.bash
+~/Medibot_openarm/openarm_ws/install/openarm_vr_ik_teleop/share/openarm_vr_ik_teleop/scripts/run_check_urdf_placo.sh
 ```
 
 预期输出包含：
@@ -237,7 +237,7 @@ source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
 ### 3.1 编译
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws
+cd ~/Medibot_openarm/openarm_ws
 colcon build --packages-select openarm_vr_ik_teleop
 ```
 
@@ -253,8 +253,8 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py arm_type:=v10 use_fake_ha
 
 ```bash
 conda activate openarm
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
-~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/openarm_vr_ik_teleop/share/openarm_vr_ik_teleop/scripts/run_ik_teleop.sh
+source ~/Medibot_openarm/openarm_ws/install/setup.bash
+~/Medibot_openarm/openarm_ws/install/openarm_vr_ik_teleop/share/openarm_vr_ik_teleop/scripts/run_ik_teleop.sh
 ```
 
 预期：`IK teleop node started, scale=0.80, rate=50.0 Hz`。

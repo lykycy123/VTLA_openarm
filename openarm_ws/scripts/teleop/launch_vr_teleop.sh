@@ -32,6 +32,7 @@ done
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _WS="$(cd "$_SCRIPT_DIR/../.." && pwd)"
+_REPO="$(cd "$_WS/.." && pwd)"          # 仓库根目录（openarm_env 若存在则在根目录）
 _INSTALL="$_WS/install"
 
 # 启动前准备工作提示
@@ -48,7 +49,7 @@ if ! $SKIP_CHECK; then
   echo "  2. PICO 头显已开机、已安装 APK，与 PC 同网"
   echo ""
   echo "  3. openarm 环境已激活"
-  echo "     conda activate openarm  或  source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate"
+  echo "     conda activate openarm  或  source ~/Medibot_openarm/openarm_env/bin/activate"
   echo ""
   if ! $USE_FAKE; then
     echo "  4. [真硬件] CAN 接口已配置，电机已使能"
@@ -67,9 +68,9 @@ _activate_openarm() {
   if [ "${CONDA_DEFAULT_ENV:-}" = "openarm" ]; then
     return 0
   fi
-  if [ -f "$HOME/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate" ]; then
+  if [ -f "$_REPO/openarm_env/bin/activate" ]; then
     # shellcheck disable=SC1091
-    source "$HOME/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate"
+    source "$_REPO/openarm_env/bin/activate"
     return 0
   fi
   local _conda_sh=""
@@ -89,8 +90,8 @@ _activate_openarm() {
     conda activate openarm
     return $?
   fi
-  echo "[ERROR] 请先激活 openarm 环境，或确保 ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env 存在"
-  echo "  conda activate openarm  或  source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate"
+  echo "[ERROR] 请先激活 openarm 环境，或确保 ~/Medibot_openarm/openarm_env 存在"
+  echo "  conda activate openarm  或  source ~/Medibot_openarm/openarm_env/bin/activate"
   return 1
 }
 
@@ -107,7 +108,7 @@ if ! "$_PYTHON" -c "import xrobotoolkit_sdk, placo" 2>/dev/null; then
   echo "[ERROR] 当前 Python 缺少 xrobotoolkit_sdk 或 placo。"
   echo "  请在 openarm 环境中安装 VR 依赖（勿用 setup_conda.sh --install，会拉 torch/CUDA）："
   echo "    conda activate openarm"
-  echo "    cd ~/Downloads/WorkSpace/hao/Medibot_openarm/third_party/XRoboToolkit-PC-Service-Pybind"
+  echo "    cd ~/Medibot_openarm/third_party/XRoboToolkit-PC-Service-Pybind"
   echo "    bash setup_ubuntu.sh"
   echo "    pip install placo"
   exit 1

@@ -49,16 +49,16 @@ cd openarm_can/build
 
 ```bash
 colcon build
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
+source ~/Medibot_openarm/openarm_ws/install/setup.bash
 ```
 
-若编译时出现 `AMENT_PREFIX_PATH` 指向已删除路径（例如旧的 `qnbot_teleoperator`）的警告，请新开终端，或先执行 `source /opt/ros/humble/setup.bash` 再 `source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash`，并检查 `~/.bashrc` 是否仍 source 了旧的 `install` 配置。
+若编译时出现 `AMENT_PREFIX_PATH` 指向已删除路径（例如旧的 `qnbot_teleoperator`）的警告，请新开终端，或先执行 `source /opt/ros/humble/setup.bash` 再 `source ~/Medibot_openarm/openarm_ws/install/setup.bash`，并检查 `~/.bashrc` 是否仍 source 了旧的 `install` 配置。
 
 #### 设置环境变量
 
 ```bash
 # 建议添加到 ~/.bashrc 中
-echo "source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash" >> ~/.bashrc
+echo "source ~/Medibot_openarm/openarm_ws/install/setup.bash" >> ~/.bashrc
 ```
 
 ### 启动基础控制

@@ -21,12 +21,12 @@ pip install h5py opencv-python pyyaml
 ## 运行
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 source source_all.sh
 conda activate openarm
 python data_collection/data_collection.py
 # 或指定配置/输出目录：
-# python data_collection/data_collection.py --config data_collection/config.yaml --datasets-dir ~/Downloads/WorkSpace/hao/Medibot_openarm/datasets
+# python data_collection/data_collection.py --config data_collection/config.yaml --datasets-dir ~/Medibot_openarm/datasets
 ```
 
 - **SPACE**：开始 / 停止录制（停止时写入 `datasets/episode_N.hdf5`）
@@ -42,7 +42,7 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py \
   arm_type:=v10 use_fake_hardware:=false \
   robot_controller:=forward_position_controller launch_rviz:=false
 
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 conda activate openarm
 python data_collection/replay.py
 # python data_collection/replay.py --replay-hdf5-path datasets/episode_0.hdf5 --no-replay-base

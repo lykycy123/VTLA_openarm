@@ -103,7 +103,7 @@ Unity 客户端说明见 [XRoboToolkit-Unity-Client](https://github.com/XR-Robot
 环境已按后文搭好后，日常直接用控制菜单启动（需图形桌面终端）。未构建时请先完成 [§3](#3-系统要求)–[§6](#6-构建与加载环境)。VR 相关请先完成 [§1](#1-仿真--真机运行前联机-pc-service-与-pico)。
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 ./openarm_ws/scripts/control_menu.sh
 ```
 
@@ -208,15 +208,15 @@ sudo apt install -y \
 ## 4. 获取代码
 
 ```bash
-git clone --recurse-submodules https://github.com/ChangerC77/RBM_openarm.git ~/Downloads/WorkSpace/hao/Medibot_openarm
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+git clone --recurse-submodules https://github.com/LuckyPBJY/Medibot_openarm.git ~/Medibot_openarm
+cd ~/Medibot_openarm
 git submodule update --init --recursive
 ```
 
 若仓库已存在但子模块目录为空（例如未加 `--recurse-submodules`），在仓库根目录再执行一次：
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 git submodule update --init --recursive
 ```
 
@@ -326,7 +326,7 @@ python -c "import em, catkin_pkg; print('ok')"
 conda activate openarm
 
 # VR：Python SDK 绑定 + IK（子模块须已 init）
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm/third_party/XRoboToolkit-PC-Service-Pybind
+cd ~/Medibot_openarm/third_party/XRoboToolkit-PC-Service-Pybind
 bash setup_ubuntu.sh
 pip install placo
 
@@ -344,7 +344,7 @@ python -c "import xrobotoolkit_sdk, placo, h5py, cv2, yaml; print('VR/采集依�
 若使用预打包环境：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate
+source ~/Medibot_openarm/openarm_env/bin/activate
 ```
 
 ### 5.4 安装 PICO 头显 APK
@@ -376,9 +376,9 @@ Success
 ## 6. 构建与加载环境
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 ./openarm_ws/scripts/build.sh
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ```
 
 说明：
@@ -418,19 +418,19 @@ Summary: 17 packages finished
 每个新终端：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ```
 
 可选写入 `~/.bashrc`：
 
 ```bash
-echo 'source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh' >> ~/.bashrc
+echo 'source ~/Medibot_openarm/source_all.sh' >> ~/.bashrc
 ```
 
 快速自检：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 pkg list | grep -E 'openarm|ranger|realsense|rbm'
 ```
 
@@ -453,7 +453,7 @@ OpenArm 双通道 USB-CANFD 通讯卡接线示意（面板丝印：`CAN0` / `CAN
 USB 同时插入时，内核可能按枚举顺序分配接口名。请先安装持久绑定（菜单 **11** 或 **1**）：
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 sudo ./openarm_ws/scripts/can/install_can_bindings.sh
 ```
 
@@ -535,7 +535,7 @@ CAN ID 与数据随电机状态变化。若完全无输出，仅“接口 UP”�
 未接真机时必须 `use_fake_hardware:=true`：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 launch openarm_bringup openarm.bimanual.launch.py \
   arm_type:=v10 \
   use_fake_hardware:=true \
@@ -565,7 +565,7 @@ RViz 双臂模型：
 确认 `can0`/`can1` 正常且周围安全后（菜单 **3** 为轨迹控制器）：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 launch openarm_bringup openarm.bimanual.launch.py \
   arm_type:=v10 \
   use_fake_hardware:=false \
@@ -589,7 +589,7 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py \
 假硬件：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 launch openarm_bimanual_moveit_config demo.launch.py \
   arm_type:=v10 use_fake_hardware:=true
 ```
@@ -692,7 +692,7 @@ USB-CAN 线序：
 首次还可执行上游脚本（建议仍先装本仓库持久绑定）：
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 sudo ./openarm_ws/scripts/can/install_can_bindings.sh
 sudo bash openarm_ws/src/chassis/ranger_ros2/ranger_bringup/scripts/setup_can2usb.bash
 ```
@@ -726,7 +726,7 @@ can2  291   [2]  00 00
 菜单 **6**，或：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 launch ranger_bringup ranger_mini_v3.launch.py port_name:=can2
 ```
 
@@ -757,7 +757,7 @@ ros2 topic echo /cmd_vel
 推荐：先菜单 **6** 启动底盘驱动，再菜单 **7**。或手动：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
@@ -801,14 +801,14 @@ bash /opt/apps/roboticsservice/runService.sh
 
 ```bash
 conda activate openarm
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
-~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/openarm_xr_bridge/share/openarm_xr_bridge/scripts/run_xr_bridge.sh
+source ~/Medibot_openarm/source_all.sh
+~/Medibot_openarm/openarm_ws/install/openarm_xr_bridge/share/openarm_xr_bridge/scripts/run_xr_bridge.sh
 ```
 
 再启摇杆映射：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ros2 launch rbm_base_control base_controller.launch.py
 ```
 
@@ -852,7 +852,7 @@ D405 彩色走 `depth_module`（无独立 RGB）。双腕默认**关闭自动曝
 查询设备：
 
 ```bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ./openarm_ws/scripts/sensors/search.sh
 # 或
 rs-enumerate-devices | head -40
@@ -916,7 +916,7 @@ RViz 画面：
 假硬件：
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 ./openarm_ws/scripts/teleop/launch_vr_teleop.sh --fake --bimanual
 ```
 
@@ -940,7 +940,7 @@ cd ~/Downloads/WorkSpace/hao/Medibot_openarm
   2. PICO 头显已开机、已安装 APK，与 PC 同网
 
   3. openarm 环境已激活
-     conda activate openarm  或  source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate
+     conda activate openarm  或  source ~/Medibot_openarm/openarm_env/bin/activate
 
   4. [真硬件] CAN 接口已配置，电机已使能
 
@@ -968,7 +968,7 @@ pip install h5py opencv-python pyyaml
 需相机、`/joint_states`、TF 末端、可选 `/odom` `/cmd_vel`：
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 source source_all.sh
 conda activate openarm
 python data_collection/data_collection.py
@@ -993,7 +993,7 @@ python data_collection/data_collection.py
 
 - **SPACE**：开始 / 停止并保存  
 - **ESC**：退出  
-- 输出：`~/Downloads/WorkSpace/hao/Medibot_openarm/datasets/episode_N.hdf5`
+- 输出：`~/Medibot_openarm/datasets/episode_N.hdf5`
 
 主要字段：
 
@@ -1011,7 +1011,7 @@ python data_collection/data_collection.py
 需 `forward_position` 驱动（勿与 VR IK 同时开）；回放底盘时再开底盘驱动。菜单 **14** 会一并拉起。
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 source source_all.sh
 conda activate openarm
 python data_collection/replay.py
@@ -1089,7 +1089,7 @@ Tip: daily workflows prefer ./openarm_ws/scripts/control_menu.sh (11–14).
 不要在 Conda 里直接 `colcon build`：
 
 ```bash
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Medibot_openarm
 ./openarm_ws/scripts/build.sh
 ```
 
@@ -1103,7 +1103,7 @@ sudo apt install -y libasio-dev \
   ros-humble-ros2-controllers ros-humble-moveit ros-humble-xacro \
   ros-humble-diagnostic-updater ros-humble-librealsense2 \
   ros-humble-compressed-image-transport
-cd ~/Downloads/WorkSpace/hao/Medibot_openarm && ./openarm_ws/scripts/build.sh
+cd ~/Medibot_openarm && ./openarm_ws/scripts/build.sh
 ```
 
 ### `setup_conda.sh --install` 长时间下载 torch / CUDA
@@ -1129,7 +1129,7 @@ bash /opt/apps/roboticsservice/runService.sh
 
 ```bash
 source /opt/ros/humble/setup.bash
-source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+source ~/Medibot_openarm/source_all.sh
 ```
 
 检查 `~/.bashrc`，删除旧的 `ros2_ws`、`agilex_ws` 或 `realsense/install` 加载命令。

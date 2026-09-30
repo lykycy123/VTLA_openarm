@@ -2,7 +2,7 @@
 """RBM OpenArm 数据回放：读取 data_collection 保存的 HDF5，发布臂/夹爪/底盘命令。
 
 用法（需先 source ROS / 工作空间，并启动 forward_position 驱动；回放底盘时还需底盘驱动）：
-  cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+  cd ~/Medibot_openarm
   source source_all.sh
   conda activate openarm
   python data_collection/replay.py

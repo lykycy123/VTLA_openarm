@@ -2,7 +2,7 @@
 """RBM OpenArm 数据采集：相机 + 关节 + 末端位姿 + 底盘 odom/cmd_vel。
 
 用法（需先 source ROS / 工作空间，并启动相机、机械臂、底盘）：
-  cd ~/Downloads/WorkSpace/hao/Medibot_openarm
+  cd ~/Medibot_openarm
   source source_all.sh
   conda activate openarm   # 需 h5py / opencv
   python data_collection/data_collection.py
