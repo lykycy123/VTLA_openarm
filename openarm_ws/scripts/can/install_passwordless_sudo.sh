@@ -20,7 +20,7 @@ fi
 install_can="${script_dir}/install_can_bindings.sh"
 bringup_can="${script_dir}/bringup_can.sh"
 configure_can="${repo_root}/openarm_ws/src/arm/openarm_can/setup/configure_socketcan.sh"
-sudoers_dst="/etc/sudoers.d/rbm-openarm-can-${target_user}"
+sudoers_dst="/etc/sudoers.d/medibot-openarm-can-${target_user}"
 
 for f in "${install_can}" "${bringup_can}" "${configure_can}"; do
   if [[ ! -x "${f}" && ! -f "${f}" ]]; then

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  echo "This script must be sourced: source ~/RBM_openarm/source_all.sh" >&2
+  echo "This script must be sourced: source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh" >&2
   exit 1
 fi
 

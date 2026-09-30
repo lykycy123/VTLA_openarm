@@ -42,7 +42,7 @@ RViz2（MotionPlanning 插件）
 ### 命令示例
 
 ```bash
-source $HOME/RBM_openarm/openarm_ws/install/setup.bash
+source $HOME/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
 
 ros2 launch openarm_bimanual_moveit_config demo.launch.py \
   use_fake_hardware:=false \
@@ -81,7 +81,7 @@ ros2 launch openarm_bimanual_moveit_config demo.launch.py \
 **终端 A — 仅机器人控制栈（关闭自带 RViz 避免重复）**
 
 ```bash
-source $HOME/RBM_openarm/openarm_ws/install/setup.bash
+source $HOME/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
 
 ros2 launch openarm_bringup openarm.bimanual.launch.py \
   use_fake_hardware:=false \
@@ -118,4 +118,4 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py \
 
 ---
 
-*文档对应工作空间：`$HOME/RBM_openarm/openarm_ws`。若安装路径不同，请将 `source` 与 `ros2 launch` 中的路径改为本地 `install/setup.bash`。*
+*文档对应工作空间：`$HOME/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws`。若安装路径不同，请将 `source` 与 `ros2 launch` 中的路径改为本地 `install/setup.bash`。*

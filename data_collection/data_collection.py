@@ -2,7 +2,7 @@
 """RBM OpenArm 数据采集：相机 + 关节 + 末端位姿 + 底盘 odom/cmd_vel。
 
 用法（需先 source ROS / 工作空间，并启动相机、机械臂、底盘）：
-  cd ~/RBM_openarm
+  cd ~/Downloads/WorkSpace/hao/Medibot_openarm
   source source_all.sh
   conda activate openarm   # 需 h5py / opencv
   python data_collection/data_collection.py
@@ -130,9 +130,11 @@ class EpisodeBuffer:
         self.eef: List[np.ndarray] = []
         self.odom: List[np.ndarray] = []
         self.cmd_vel: List[np.ndarray] = []
-        self.images_head: List[np.ndarray] = []
-        self.images_left: List[np.ndarray] = []
-        self.images_right: List[np.ndarray] = []
+        # 存的是相机 compressed 话题里已有的 JPEG 字节（不再解码成 RGB 大数组），
+        # 否则每帧 4.6MB×30Hz≈138MB/s，一段几十秒的 episode 就会把内存打满。
+        self.images_head: List[bytes] = []
+        self.images_left: List[bytes] = []
+        self.images_right: List[bytes] = []
 
     @property
     def frame_count(self) -> int:
@@ -146,9 +148,9 @@ class EpisodeBuffer:
         eef: np.ndarray,
         odom: np.ndarray,
         cmd_vel: np.ndarray,
-        head_img: np.ndarray,
-        left_img: np.ndarray,
-        right_img: np.ndarray,
+        head_img: bytes,
+        left_img: bytes,
+        right_img: bytes,
     ):
         self.timestamp.append(float(timestamp))
         self.qpos.append(np.asarray(qpos, dtype=np.float64).reshape(-1).copy())
@@ -156,9 +158,9 @@ class EpisodeBuffer:
         self.eef.append(np.asarray(eef, dtype=np.float64).reshape(14).copy())
         self.odom.append(np.asarray(odom, dtype=np.float64).reshape(13).copy())
         self.cmd_vel.append(np.asarray(cmd_vel, dtype=np.float64).reshape(6).copy())
-        self.images_head.append(np.asarray(head_img, dtype=np.uint8).copy())
-        self.images_left.append(np.asarray(left_img, dtype=np.uint8).copy())
-        self.images_right.append(np.asarray(right_img, dtype=np.uint8).copy())
+        self.images_head.append(head_img)
+        self.images_left.append(left_img)
+        self.images_right.append(right_img)
 
     def save(self, output_path: Path, config: Dict):
         if self.frame_count == 0:
@@ -202,8 +204,8 @@ class EpisodeBuffer:
 
         os.replace(tmp_path, output_path)
 
-    def _write_compressed_images(self, group, name: str, images: List[np.ndarray]):
-        padded, lengths = self._encode_jpeg(images)
+    def _write_compressed_images(self, group, name: str, images: List[bytes]):
+        padded, lengths = self._pack_jpeg(images)
         group.create_dataset(
             name,
             data=padded,
@@ -212,28 +214,18 @@ class EpisodeBuffer:
         )
         group.create_dataset(f"{name}_lengths", data=lengths)
 
-    def _encode_jpeg(self, images: List[np.ndarray]):
-        encoded = []
-        lengths = []
-        for image in images:
-            bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            ok, buf = cv2.imencode(
-                ".jpg",
-                bgr,
-                [int(cv2.IMWRITE_JPEG_QUALITY), int(self.jpeg_quality)],
-            )
-            if not ok:
-                raise RuntimeError("JPEG encoding failed")
-            flat = buf.reshape(-1)
-            encoded.append(flat)
-            lengths.append(flat.size)
-
-        max_len = max(lengths)
-        padded = np.stack(
-            [np.pad(item, (0, max_len - item.size), constant_values=0) for item in encoded],
-            axis=0,
-        )
-        return padded, np.asarray(lengths, dtype=np.int32)
+    @staticmethod
+    def _pack_jpeg(images: List[bytes]):
+        """把已是 JPEG 的字节按帧打包成定长二维数组（HDF5 结构与原先一致）。"""
+        if not images:
+            raise RuntimeError("No images to write")
+        arrays = [np.frombuffer(item, dtype=np.uint8) for item in images]
+        lengths = np.asarray([a.size for a in arrays], dtype=np.int32)
+        max_len = int(lengths.max())
+        padded = np.zeros((len(arrays), max_len), dtype=np.uint8)
+        for i, arr in enumerate(arrays):
+            padded[i, : arr.size] = arr
+        return padded, lengths
 
 
 class StdinKeyboard:
@@ -473,9 +465,12 @@ class DataCollectionNode(Node):
             return
 
         try:
-            head_img = self._decode_compressed_image(head_msg)
-            left_img = self._decode_compressed_image(left_msg)
-            right_img = self._decode_compressed_image(right_msg)
+            # 直接保存 compressed 话题的 JPEG 字节：不解码、不重编码，内存/CPU 都省。
+            head_img = bytes(head_msg.data)
+            left_img = bytes(left_msg.data)
+            right_img = bytes(right_msg.data)
+            if not head_img or not left_img or not right_img:
+                raise RuntimeError("Empty compressed image data")
             with self._lock:
                 if not self._recording:
                     return
@@ -542,6 +537,8 @@ class DataCollectionNode(Node):
         finally:
             with self._lock:
                 self._saving = False
+                # 保存后立刻释放这一段的图像缓冲，避免内存常驻到下一段录制才开始回收。
+                self.episode.reset()
 
     def _next_episode_path(self) -> Path:
         self.datasets_dir.mkdir(parents=True, exist_ok=True)

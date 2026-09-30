@@ -24,7 +24,7 @@ import rclpy
 from control_msgs.action import GripperCommand
 from geometry_msgs.msg import PoseStamped
 from rclpy.action import ActionClient
-from rclpy.executors import ExternalShutdownException
+from rclpy.executors import ExternalShutdownException, SingleThreadedExecutor
 from rclpy.node import Node
 from sensor_msgs.msg import JointState, Joy
 from std_msgs.msg import Float32, Float64MultiArray
@@ -180,12 +180,24 @@ class IkTeleopNode(Node):
             Joy, "/vr/controller_input", self._cb_controller_input, 10
         )
 
+        # 夹爪 action 客户端单独放在一个节点里，并用独立执行器线程 spin。
+        # 原因：rclpy 只要订阅了 gripper action 的 status 话题（ActionClient 内部会订阅），
+        # 执行器就会忙轮询（实测 ~65% 一个核；两个夹爪客户端 ~93%）。
+        # 若与 50Hz 控制循环共用同一个执行器，定时器会被饿死（指令实测掉到 ~6Hz），
+        # 表现就是"刚开始正常、越用机械臂越跟不上"。
+        self._gripper_node = rclpy.create_node("ik_gripper_action_client")
         self._action_left_gripper = ActionClient(
-            self, GripperCommand, "left_gripper_controller/gripper_cmd"
+            self._gripper_node, GripperCommand, "left_gripper_controller/gripper_cmd"
         )
         self._action_right_gripper = ActionClient(
-            self, GripperCommand, "right_gripper_controller/gripper_cmd"
+            self._gripper_node, GripperCommand, "right_gripper_controller/gripper_cmd"
         )
+        self._gripper_executor = SingleThreadedExecutor()
+        self._gripper_executor.add_node(self._gripper_node)
+        self._gripper_thread = threading.Thread(
+            target=self._spin_gripper_clients, daemon=True
+        )
+        self._gripper_thread.start()
 
         self.pub_left_cmd = self.create_publisher(
             Float64MultiArray, "/left_forward_position_controller/commands", 10
@@ -435,6 +447,29 @@ class IkTeleopNode(Node):
             self.timer.cancel()
         except Exception:
             pass
+        try:
+            self._gripper_executor.shutdown(timeout_sec=0.5)
+        except Exception:
+            pass
+
+    def destroy_gripper_node(self) -> None:
+        """释放为夹爪 action 客户端单独创建的节点。"""
+        try:
+            self._gripper_executor.shutdown(timeout_sec=0.5)
+        except Exception:
+            pass
+        try:
+            self._gripper_node.destroy_node()
+        except Exception:
+            pass
+
+    def _spin_gripper_clients(self) -> None:
+        """独立线程里 spin 夹爪 action 客户端节点，避免拖慢主控制循环。"""
+        while rclpy.ok() and not self._shutting_down:
+            try:
+                self._gripper_executor.spin_once(timeout_sec=0.05)
+            except Exception:
+                break
 
     def go_home_blocking(self) -> None:
         """退出前将双臂插值到 MoveIt home（全零），阻塞直到完成。"""
@@ -717,6 +752,10 @@ def main(args=None):
         # 这里若再插值，会与 go_home_arms 抢 /commands，表现为剧烈抖动并停在 hands_up。
         try:
             node.stop_publishing()
+        except Exception:
+            pass
+        try:
+            node.destroy_gripper_node()
         except Exception:
             pass
         node.destroy_node()

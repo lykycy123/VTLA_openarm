@@ -42,7 +42,7 @@ conda pack -n openarm -o openarm.tar.gz
 - `build/`：可选，可不复制以减小体积（目标机需重新 `colcon build`）
 - `openarm_vr_topics.md`、`openarm_setup_guide.md`、`vr_openarm_implementation.md` 等文档
 
-建议目录结构保持与源机一致，可放置于任意路径（如 `~/RBM_openarm/openarm_ws`），脚本会按相对路径解析。
+建议目录结构保持与源机一致，可放置于任意路径（如 `~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws`），脚本会按相对路径解析。
 
 ### 2.4 需一并提供的文件
 
@@ -78,7 +78,7 @@ bash /opt/apps/roboticsservice/runService.sh
 ### 3.3 解压 openarm_ws
 
 ```bash
-# 解压到目标路径（示例为 ~/RBM_openarm/openarm_ws）
+# 解压到目标路径（示例为 ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws）
 tar -xzf openarm_ws_vr.tar.gz -C ~/projects/
 # 或直接复制目录
 ```
@@ -86,7 +86,7 @@ tar -xzf openarm_ws_vr.tar.gz -C ~/projects/
 若未包含 `build/`，需重新编译：
 
 ```bash
-cd ~/RBM_openarm/openarm_ws  # 或你的实际路径
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws  # 或你的实际路径
 source /opt/ros/humble/setup.bash
 colcon build
 ```
@@ -124,7 +124,7 @@ conda create -n openarm --clone ~/openarm_env  # 若 conda 支持
 `openarm_ws/scripts/teleop/launch_vr_teleop.sh` 可一次性启动 bringup + xr_bridge + ik_teleop。**脚本不包含编译**，修改 ik_teleop、xr_bridge、openarm_description 等源码后需先编译：
 
 ```bash
-cd ~/RBM_openarm/openarm_ws
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws
 # 修改源码后先编译（在 source 之前）
 source /opt/ros/humble/setup.bash
 colcon build --packages-select openarm_xr_bridge openarm_vr_ik_teleop openarm_description openarm_bringup

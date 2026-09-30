@@ -1,3 +1,3 @@
-if [ -f ~/RBM_openarm/openarm_ws/install/setup.bash ]; then
-  source ~/RBM_openarm/openarm_ws/install/setup.bash
+if [ -f ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash ]; then
+  source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/setup.bash
 fi

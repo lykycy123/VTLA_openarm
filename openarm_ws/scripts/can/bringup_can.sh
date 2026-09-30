@@ -87,21 +87,42 @@ wait_for_gs_usb_iface() {
   return 1
 }
 
+# 把 current 重命名为 desired；可选 expect_driver 用于区分「同名但驱动不对」的情况。
+# 背景：udev 规则按 peak_usb 的 dev_id 分通道，但当 USB 枚举顺序让 gs_usb(底盘) 先占住
+# can1 时，一轮 udev 无法把 can1<->can2 对调（两个目标名互相占用 → 死锁），
+# 结果可能是 can1=gs_usb、can2=peak 通道1。这里先把占着目标名但驱动不对的接口挪到
+# 临时名（仍是 can*，随后 bringup_chassis 会按驱动认领），避免 set -e 直接中止导致
+# can0/can1 连 up 的机会都没有。
 ensure_name() {
   local current="$1"
   local desired="$2"
+  local expect_driver="${3:-}"
 
   if [[ "${current}" == "${desired}" ]]; then
     return 0
   fi
 
   if ip link show "${desired}" &>/dev/null; then
-    echo "[错误] 目标接口 ${desired} 已存在，无法将 ${current} 重命名为 ${desired}。" >&2
-    return 1
+    local occ_driver=""
+    occ_driver="$(basename "$(readlink -f "/sys/class/net/${desired}/device/driver" 2>/dev/null)" 2>/dev/null || true)"
+    if [[ -n "${expect_driver}" && "${occ_driver}" != "${expect_driver}" ]]; then
+      local tmp="${desired}tmp"
+      local n=0
+      while ip link show "${tmp}" &>/dev/null; do
+        n=$((n + 1))
+        tmp="${desired}tmp${n}"
+      done
+      echo "[INFO] ${desired} 当前驱动为 ${occ_driver:-未知}（应为 ${expect_driver}），先让位到 ${tmp}"
+      ip link set "${desired}" down 2>/dev/null || true
+      ip link set "${desired}" name "${tmp}"
+    else
+      echo "[错误] 目标接口 ${desired} 已存在，无法将 ${current} 重命名为 ${desired}。" >&2
+      return 1
+    fi
   fi
 
   echo "[INFO] 将 ${current} 重命名为 ${desired}"
-  ip link set "${current}" down
+  ip link set "${current}" down 2>/dev/null || true
   ip link set "${current}" name "${desired}"
 }
 
@@ -139,7 +160,7 @@ bringup_arm() {
     right=can0
   else
     right="${peak_ifaces[0]}"
-    ensure_name "${right}" can0
+    ensure_name "${right}" can0 peak_usb
     right=can0
   fi
 
@@ -162,7 +183,7 @@ bringup_arm() {
       echo "[错误] 未找到第二个 peak_usb 通道。" >&2
       return 1
     }
-    ensure_name "${left}" can1
+    ensure_name "${left}" can1 peak_usb
     left=can1
   fi
 
@@ -206,7 +227,7 @@ bringup_chassis() {
       print_can_diagnostics >&2
       return 1
     fi
-    ensure_name "${iface}" can2
+    ensure_name "${iface}" can2 gs_usb
     iface=can2
   fi
 

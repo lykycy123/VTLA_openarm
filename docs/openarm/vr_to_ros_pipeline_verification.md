@@ -9,7 +9,7 @@
 | 项 | 说明 |
 |----|------|
 | 系统 | Ubuntu 22.04 + ROS 2 Humble（`/opt/ros/humble`） |
-| 工作空间 | 已 `colcon build` 且存在 `install/setup.bash`（下文以 `$WS` 表示，例：`export WS=~/RBM_openarm/openarm_ws`） |
+| 工作空间 | 已 `colcon build` 且存在 `install/setup.bash`（下文以 `$WS` 表示，例：`export WS=~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws`） |
 | Python | `openarm` 或 `openarm_env` 为 **Python 3.10**，且能 `import xrobotoolkit_sdk` |
 | 网络 | PICO 头显与 PC **同一局域网**，头显已装 XRoboToolkit APK 并已连接 |
 | PC Service | XRoboToolkit PC Service **必须先于** `xr_bridge` 启动 |

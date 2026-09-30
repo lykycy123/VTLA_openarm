@@ -25,10 +25,10 @@
 
 ## 工作目录与基本命令
 
-在 **仓库根目录**（`~/RBM_openarm`）执行（将路径换成你的机器上的实际路径）：
+在 **仓库根目录**（`~/Downloads/WorkSpace/hao/Medibot_openarm`）执行（将路径换成你的机器上的实际路径）：
 
 ```bash
-cd $HOME/RBM_openarm
+cd $HOME/Downloads/WorkSpace/hao/Medibot_openarm
 ./openarm_ws/scripts/teleop/launch_vr_teleop.sh [选项...]
 ```
 

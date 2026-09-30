@@ -22,6 +22,36 @@
 
 ---
 
+## 从零复现清单（clone 后必读）
+
+**本仓库只含源码**：不含 `openarm_ws/{build,install,log}` 的编译产物，也不含数据集（`datasets*/`，已在 `.gitignore` 中排除）。clone 后**必须自行编译**，不能直接运行。
+
+1. 安装 Ubuntu 22.04 + ROS 2 Humble，装齐 apt 依赖 → [§3](#3-系统要求)
+2. clone（**带子模块**，本仓库有 5 个 submodule）：
+
+   ```bash
+   git clone --recurse-submodules <本仓库地址> ~/Medibot_openarm
+   cd ~/Medibot_openarm
+   ```
+
+   若已 clone 但漏了子模块：`git submodule update --init --recursive`
+3. 安装 XRoboToolkit PC Service（`.deb`，VR 遥操作必需）→ [§5.1](#51-安装-xrobotoolkit-pc-service-deb)
+4. 创建 conda 环境 `openarm` 并安装 VR / 采集 Python 依赖 → [§5.2](#52-创建-openarm)–[§5.3](#53-vr-与采集-python-依赖)
+
+   > 子模块里的 `third_party/XRoboToolkit-PC-Service-Pybind/setup_ubuntu.sh` 默认执行 `conda install -c conda-forge ...`；若 conda-forge 慢或被墙，可临时去掉 `-c conda-forge` 改用默认 channel。
+5. 安装 PICO 头显端 APK（仅 VR）→ [§5.4](#54-安装-pico-头显-apk)
+6. **编译工作空间**：`./openarm_ws/scripts/build.sh` → [§6](#6-构建与加载环境)
+7. 每次使用前加载环境：`source source_all.sh`
+8. 首次配置 CAN（udev 持久绑定 + 免密 sudo，只需一次）→ [§7](#7-can-接口)
+9. 启动：`./openarm_ws/scripts/control_menu.sh`；首次用 `11`，日常数据采集用 `13` → [§2](#2-快捷启动控制菜单)
+
+**两个已知坑**（详见 [§14 常见问题](#14-常见问题)）：
+
+- **代理变量**：XRoboToolkit PC Service 必须在**没有 `http_proxy` / `ALL_PROXY` 等代理变量**的终端里启动，否则它不会监听头显用的 63901 端口，头显会一直"无法连接"（`control_menu.sh` 已自动清理，若手动启动需自行 `unset`）。
+- **CAN 接口名**：需与 udev 绑定一致 —— `can0`/`can1` 为双臂的 `peak_usb`（CAN-FD 1M/5M），`can2` 为底盘的 `gs_usb`（500k）。名字错位时菜单会明确报错并拒绝启动机械臂，而不是让驱动"假激活"（表现为程序正常但机械臂不动）。
+
+---
+
 ## 目录
 
 1. [仿真 / 真机运行前：联机 PC Service 与 PICO](#1-仿真--真机运行前联机-pc-service-与-pico)
@@ -73,7 +103,7 @@ Unity 客户端说明见 [XRoboToolkit-Unity-Client](https://github.com/XR-Robot
 环境已按后文搭好后，日常直接用控制菜单启动（需图形桌面终端）。未构建时请先完成 [§3](#3-系统要求)–[§6](#6-构建与加载环境)。VR 相关请先完成 [§1](#1-仿真--真机运行前联机-pc-service-与-pico)。
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 ./openarm_ws/scripts/control_menu.sh
 ```
 
@@ -178,22 +208,22 @@ sudo apt install -y \
 ## 4. 获取代码
 
 ```bash
-git clone --recurse-submodules https://github.com/ChangerC77/RBM_openarm.git ~/RBM_openarm
-cd ~/RBM_openarm
+git clone --recurse-submodules https://github.com/ChangerC77/RBM_openarm.git ~/Downloads/WorkSpace/hao/Medibot_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 git submodule update --init --recursive
 ```
 
 若仓库已存在但子模块目录为空（例如未加 `--recurse-submodules`），在仓库根目录再执行一次：
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 git submodule update --init --recursive
 ```
 
 主要目录：
 
 ```text
-RBM_openarm/
+Medibot_openarm/
 ├── openarm_ws/
 │   ├── src/
 │   │   ├── arm/       # OpenArm、MoveIt、CAN、机械臂遥操作
@@ -296,7 +326,7 @@ python -c "import em, catkin_pkg; print('ok')"
 conda activate openarm
 
 # VR：Python SDK 绑定 + IK（子模块须已 init）
-cd ~/RBM_openarm/third_party/XRoboToolkit-PC-Service-Pybind
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm/third_party/XRoboToolkit-PC-Service-Pybind
 bash setup_ubuntu.sh
 pip install placo
 
@@ -314,7 +344,7 @@ python -c "import xrobotoolkit_sdk, placo, h5py, cv2, yaml; print('VR/采集依�
 若使用预打包环境：
 
 ```bash
-source ~/RBM_openarm/openarm_env/bin/activate
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate
 ```
 
 ### 5.4 安装 PICO 头显 APK
@@ -346,9 +376,9 @@ Success
 ## 6. 构建与加载环境
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 ./openarm_ws/scripts/build.sh
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ```
 
 说明：
@@ -388,19 +418,19 @@ Summary: 17 packages finished
 每个新终端：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ```
 
 可选写入 `~/.bashrc`：
 
 ```bash
-echo 'source ~/RBM_openarm/source_all.sh' >> ~/.bashrc
+echo 'source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh' >> ~/.bashrc
 ```
 
 快速自检：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 pkg list | grep -E 'openarm|ranger|realsense|rbm'
 ```
 
@@ -423,7 +453,7 @@ OpenArm 双通道 USB-CANFD 通讯卡接线示意（面板丝印：`CAN0` / `CAN
 USB 同时插入时，内核可能按枚举顺序分配接口名。请先安装持久绑定（菜单 **11** 或 **1**）：
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 sudo ./openarm_ws/scripts/can/install_can_bindings.sh
 ```
 
@@ -505,7 +535,7 @@ CAN ID 与数据随电机状态变化。若完全无输出，仅“接口 UP”�
 未接真机时必须 `use_fake_hardware:=true`：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 launch openarm_bringup openarm.bimanual.launch.py \
   arm_type:=v10 \
   use_fake_hardware:=true \
@@ -535,7 +565,7 @@ RViz 双臂模型：
 确认 `can0`/`can1` 正常且周围安全后（菜单 **3** 为轨迹控制器）：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 launch openarm_bringup openarm.bimanual.launch.py \
   arm_type:=v10 \
   use_fake_hardware:=false \
@@ -559,7 +589,7 @@ ros2 launch openarm_bringup openarm.bimanual.launch.py \
 假硬件：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 launch openarm_bimanual_moveit_config demo.launch.py \
   arm_type:=v10 use_fake_hardware:=true
 ```
@@ -662,7 +692,7 @@ USB-CAN 线序：
 首次还可执行上游脚本（建议仍先装本仓库持久绑定）：
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 sudo ./openarm_ws/scripts/can/install_can_bindings.sh
 sudo bash openarm_ws/src/chassis/ranger_ros2/ranger_bringup/scripts/setup_can2usb.bash
 ```
@@ -696,7 +726,7 @@ can2  291   [2]  00 00
 菜单 **6**，或：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 launch ranger_bringup ranger_mini_v3.launch.py port_name:=can2
 ```
 
@@ -727,7 +757,7 @@ ros2 topic echo /cmd_vel
 推荐：先菜单 **6** 启动底盘驱动，再菜单 **7**。或手动：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 ```
 
@@ -771,14 +801,14 @@ bash /opt/apps/roboticsservice/runService.sh
 
 ```bash
 conda activate openarm
-source ~/RBM_openarm/source_all.sh
-~/RBM_openarm/openarm_ws/install/openarm_xr_bridge/share/openarm_xr_bridge/scripts/run_xr_bridge.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
+~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_ws/install/openarm_xr_bridge/share/openarm_xr_bridge/scripts/run_xr_bridge.sh
 ```
 
 再启摇杆映射：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ros2 launch rbm_base_control base_controller.launch.py
 ```
 
@@ -822,7 +852,7 @@ D405 彩色走 `depth_module`（无独立 RGB）。双腕默认**关闭自动曝
 查询设备：
 
 ```bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ./openarm_ws/scripts/sensors/search.sh
 # 或
 rs-enumerate-devices | head -40
@@ -886,7 +916,7 @@ RViz 画面：
 假硬件：
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 ./openarm_ws/scripts/teleop/launch_vr_teleop.sh --fake --bimanual
 ```
 
@@ -910,7 +940,7 @@ cd ~/RBM_openarm
   2. PICO 头显已开机、已安装 APK，与 PC 同网
 
   3. openarm 环境已激活
-     conda activate openarm  或  source ~/RBM_openarm/openarm_env/bin/activate
+     conda activate openarm  或  source ~/Downloads/WorkSpace/hao/Medibot_openarm/openarm_env/bin/activate
 
   4. [真硬件] CAN 接口已配置，电机已使能
 
@@ -938,7 +968,7 @@ pip install h5py opencv-python pyyaml
 需相机、`/joint_states`、TF 末端、可选 `/odom` `/cmd_vel`：
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 source source_all.sh
 conda activate openarm
 python data_collection/data_collection.py
@@ -957,13 +987,13 @@ python data_collection/data_collection.py
 [INFO] [openarm_data_collection]: Data collection started.
 [INFO] [openarm_data_collection]: episode_frames=30
 [INFO] [openarm_data_collection]: Data collection stopped, frames=120.
-[INFO] [openarm_data_collection]: Saving episode to /home/<user>/RBM_openarm/datasets/episode_0.hdf5
-[INFO] [openarm_data_collection]: Saved episode to /home/<user>/RBM_openarm/datasets/episode_0.hdf5
+[INFO] [openarm_data_collection]: Saving episode to /home/<user>/Medibot_openarm/datasets/episode_0.hdf5
+[INFO] [openarm_data_collection]: Saved episode to /home/<user>/Medibot_openarm/datasets/episode_0.hdf5
 ```
 
 - **SPACE**：开始 / 停止并保存  
 - **ESC**：退出  
-- 输出：`~/RBM_openarm/datasets/episode_N.hdf5`
+- 输出：`~/Downloads/WorkSpace/hao/Medibot_openarm/datasets/episode_N.hdf5`
 
 主要字段：
 
@@ -981,7 +1011,7 @@ python data_collection/data_collection.py
 需 `forward_position` 驱动（勿与 VR IK 同时开）；回放底盘时再开底盘驱动。菜单 **14** 会一并拉起。
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 source source_all.sh
 conda activate openarm
 python data_collection/replay.py
@@ -991,8 +1021,8 @@ python data_collection/replay.py
 
 ```text
 ========== 可选数据集 ==========
-  [0] episode_0.hdf5  (45.2 MB)  /home/<user>/RBM_openarm/datasets/episode_0.hdf5
-  [1] episode_1.hdf5  (52.8 MB)  /home/<user>/RBM_openarm/datasets/episode_1.hdf5
+  [0] episode_0.hdf5  (45.2 MB)  /home/<user>/Medibot_openarm/datasets/episode_0.hdf5
+  [1] episode_1.hdf5  (52.8 MB)  /home/<user>/Medibot_openarm/datasets/episode_1.hdf5
 ================================
 请输入数据集序号 [0-1]，或 episode 编号（直接 Enter=最新 episode_1）：1
 [INFO] [replay]: 已选择 [1] episode_1.hdf5
@@ -1059,7 +1089,7 @@ Tip: daily workflows prefer ./openarm_ws/scripts/control_menu.sh (11–14).
 不要在 Conda 里直接 `colcon build`：
 
 ```bash
-cd ~/RBM_openarm
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm
 ./openarm_ws/scripts/build.sh
 ```
 
@@ -1073,7 +1103,7 @@ sudo apt install -y libasio-dev \
   ros-humble-ros2-controllers ros-humble-moveit ros-humble-xacro \
   ros-humble-diagnostic-updater ros-humble-librealsense2 \
   ros-humble-compressed-image-transport
-cd ~/RBM_openarm && ./openarm_ws/scripts/build.sh
+cd ~/Downloads/WorkSpace/hao/Medibot_openarm && ./openarm_ws/scripts/build.sh
 ```
 
 ### `setup_conda.sh --install` 长时间下载 torch / CUDA
@@ -1099,7 +1129,7 @@ bash /opt/apps/roboticsservice/runService.sh
 
 ```bash
 source /opt/ros/humble/setup.bash
-source ~/RBM_openarm/source_all.sh
+source ~/Downloads/WorkSpace/hao/Medibot_openarm/source_all.sh
 ```
 
 检查 `~/.bashrc`，删除旧的 `ros2_ws`、`agilex_ws` 或 `realsense/install` 加载命令。
@@ -1138,4 +1168,3 @@ source ~/RBM_openarm/source_all.sh
 - [XRoboToolkit PICO APK](https://github.com/XR-Robotics/XRoboToolkit-Unity-Client/releases)
 - [RealSense ROS](https://github.com/IntelRealSense/realsense-ros)
 - 本仓库：[`docs/openarm/`](docs/openarm/)、[`docs/openarm/vr_deployment_guide.md`](docs/openarm/vr_deployment_guide.md)、[`data_collection/README.md`](data_collection/README.md)
-

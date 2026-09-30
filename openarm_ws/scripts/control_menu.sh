@@ -4,7 +4,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 script_path="${script_dir}/$(basename "${BASH_SOURCE[0]}")"
 project_dir="$(cd "${script_dir}/../.." && pwd)"
 workspace_dir="${project_dir}/openarm_ws"
-state_dir="/tmp/rbm-openarm-control-${UID}"
+state_dir="/tmp/medibot-openarm-control-${UID}"
+title_prefix="Medibot "
 shell_type="${SHELL##*/}"
 [[ -n "${shell_type}" ]] || shell_type=bash
 
@@ -86,20 +87,25 @@ load_ros_environment() {
 
 wait_for_can_interface() {
   local iface="${1:-can2}"
+  local want_driver="${2:-}"
   local flags=""
+  local drv=""
   local i=0
   # SocketCAN 的 operstate 经常是 UNKNOWN，不能用 `state UP` 判断。
-  for i in {1..50}; do
+  # 只看 IFF_UP 不够：命名互换时 can1 可能是底盘 gs_usb 且已 UP，
+  # 会让机械臂绑到错误总线（表现为驱动"激活"但电机不动），所以同时校验驱动。
+  for i in {1..150}; do
     if [[ -f "/sys/class/net/${iface}/flags" ]]; then
       flags="$(cat "/sys/class/net/${iface}/flags" 2>/dev/null || echo 0)"
-      if (( flags & 0x1 )); then
-        echo "[INFO] ${iface} 已就绪。"
+      drv="$(basename "$(readlink -f "/sys/class/net/${iface}/device/driver" 2>/dev/null)" 2>/dev/null || true)"
+      if (( flags & 0x1 )) && { [[ -z "${want_driver}" ]] || [[ "${drv}" == "${want_driver}" ]]; }; then
+        echo "[INFO] ${iface} 已就绪（驱动 ${drv:-未知}）。"
         return 0
       fi
     fi
     sleep 0.2
   done
-  echo "[错误] 等待 ${iface} 就绪超时（约 10s）。请确认 CAN tab 已成功启动。" >&2
+  echo "[错误] 等待 ${iface} 就绪超时（约 30s，期望驱动 ${want_driver:-任意}）。请确认 CAN tab 已成功启动。" >&2
   return 1
 }
 
@@ -135,6 +141,15 @@ activate_openarm_environment() {
 
   echo "[错误] 未找到 openarm Conda 环境或 ${project_dir}/openarm_env。" >&2
   return 1
+}
+
+clear_proxy_env() {
+  # 本机 ~/.bashrc 会调用 proxy() 导出 clash 代理变量（http_proxy/ALL_PROXY=127.0.0.1:7897 等）。
+  # XRoboToolkit PC Service 的 DeviceConnectionManager 一旦检测到代理变量，就不会打开给头显用的
+  # TCP 端口(63901)，日志报 "tcp server listen failed. port: 63901"，头显会一直“无法连接”。
+  # 仅在本组件终端内清掉代理变量，不改动 ~/.bashrc。
+  unset http_proxy https_proxy all_proxy no_proxy ws_proxy wss_proxy
+  unset HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY WS_PROXY WSS_PROXY
 }
 
 can_bringup_script="${script_dir}/can/bringup_can.sh"
@@ -201,7 +216,8 @@ run_component() {
     arm_bringup)
       load_ros_environment || keep_terminal_open 1
       echo "[INFO] 启动真实双臂硬件驱动（openarm bringup）..."
-      echo "[INFO] 请确认已先通过菜单 2 启动 CAN。"
+      wait_for_can_interface can0 peak_usb || keep_terminal_open 1
+      wait_for_can_interface can1 peak_usb || keep_terminal_open 1
       ros2 launch openarm_bringup openarm.bimanual.launch.py \
         arm_type:=v10 \
         use_fake_hardware:=false \
@@ -234,6 +250,8 @@ run_component() {
       # 不要再开桌面那个 Unity 窗口（run3D.sh / RobotLinuxDemo）。
       # 它和 xr_bridge 都连本机 60061，窗口会把头显数据独占走，
       # 机械臂侧位姿和握把会一直是 0。PICO 连上后台服务即可。
+      # 代理变量会导致 63901 监听失败，务必在启动前清掉。
+      clear_proxy_env
       export LD_LIBRARY_PATH="${rs_dir}:${rs_dir}/lib:${rs_dir}/SDK/x64:${LD_LIBRARY_PATH:-}"
       export QT_PLUGIN_PATH="${rs_dir}/plugins/:${QT_PLUGIN_PATH:-}"
       export QT_QML_PATH="${rs_dir}/qml/:${QT_QML_PATH:-}"
@@ -253,6 +271,8 @@ run_component() {
       load_ros_environment || keep_terminal_open 1
       activate_openarm_environment || keep_terminal_open 1
       echo "[INFO] 启动真实双臂 VR 遥操作（使用外部 XR bridge）..."
+      wait_for_can_interface can0 peak_usb || keep_terminal_open 1
+      wait_for_can_interface can1 peak_usb || keep_terminal_open 1
       "${script_dir}/teleop/launch_vr_teleop.sh" \
         --real --bimanual --skip-check --no-xr-bridge || status=$?
       ;;
@@ -261,7 +281,7 @@ run_component() {
       load_ros_environment || keep_terminal_open 1
       echo "[INFO] Python: $(command -v python3) ($(python3 --version 2>&1))"
       echo "[INFO] 启动 Ranger Mini 3.0 底盘驱动（can2）..."
-      wait_for_can_interface can2 || keep_terminal_open 1
+      wait_for_can_interface can2 gs_usb || keep_terminal_open 1
       ros2 launch ranger_bringup ranger_mini_v3.launch.py port_name:=can2 || status=$?
       ;;
 
@@ -276,6 +296,8 @@ run_component() {
     xr_bridge)
       load_ros_environment || keep_terminal_open 1
       activate_openarm_environment || keep_terminal_open 1
+      # 与 PC Service 保持一致，避免代理变量影响本机 60061 连接。
+      clear_proxy_env
       # 与 PC Service 同窗口并行启动时多等一会
       sleep 3
       echo "[INFO] 启动 XR bridge..."
@@ -452,12 +474,12 @@ start_terminal() {
   fi
 
   rm -f "${pid_file}"
-  printf '%s\n' "${title}" >"${title_file}"
+  printf '%s\n' "${title_prefix}${title}" >"${title_file}"
 
   # 终端主进程退出后窗口会关闭；不要再 exec 一个空 shell，否则 0 无法关窗。
   if ! gnome-terminal \
     --window \
-    --title="${title}" \
+    --title="${title_prefix}${title}" \
     --working-directory="${project_dir}" \
     -- /bin/bash -c "printf '%s\\n' \$\$ > '${pid_file}'; exec /bin/bash '${script_path}' --run-component '${component}'"; then
     echo "[错误] 无法创建终端：${title}" >&2
@@ -504,7 +526,7 @@ start_components_window() {
     fi
 
     rm -f "${pid_file}"
-    printf '%s\n' "${title}" >"${title_file}"
+    printf '%s\n' "${title_prefix}${title}" >"${title_file}"
 
     if (( first_tab )); then
       if (( open_new_window )); then
@@ -520,7 +542,7 @@ start_components_window() {
 
     # 多 tab 必须用 --command=；若用 -- 会吞掉后续 --tab 参数。
     terminal_args+=(
-      --title="${title}"
+      --title="${title_prefix}${title}"
       --working-directory="${project_dir}"
       --command="/bin/bash -c \"printf '%s\\n' \\\$\\\$ > '${pid_file}'; exec /bin/bash '${script_path}' --run-component '${component}'\""
     )
@@ -569,7 +591,7 @@ focus_vr_teleop_window() {
     "Ranger Mini Driver" \
     "Ranger VR Control"; do
     if command -v wmctrl >/dev/null 2>&1; then
-      if wmctrl -a "${candidate}" 2>/dev/null; then
+      if wmctrl -a "${title_prefix}${candidate}" 2>/dev/null; then
         return 0
       fi
     fi
