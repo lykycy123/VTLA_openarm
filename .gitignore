@@ -31,6 +31,8 @@ datasets*/
 *.mcap
 *.hdf5
 *.log
+/launch_params_*
+/docs/session_status.md
 *.apk
 *.deb
 *.tar.gz

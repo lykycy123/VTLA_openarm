@@ -15,6 +15,7 @@
 - 胸前 RealSense D435I + 双腕 RealSense D405
 - PICO + XRoboToolkit VR 遥操作（臂 + 底盘）
 - 根目录 `data_collection/`：HDF5 示教采集与回放
+- 千觉 USB 触觉传感器单窗口仪表盘：图像、深度、六维力数值、力曲线与全部输出摘要，[使用指南](docs/xense_live_view.md)
 
 > **安全**：首次启动真机前请释放急停、架空底盘、清空机械臂工作空间，并准备随时断电。在 CAN 接口、机械零位和电机 ID 未确认前，不要启动真实硬件。
 
@@ -38,7 +39,7 @@
 3. 安装 XRoboToolkit PC Service（`.deb`，VR 遥操作必需）→ [§5.1](#51-安装-xrobotoolkit-pc-service-deb)
 4. 创建 conda 环境 `openarm` 并安装 VR / 采集 Python 依赖 → [§5.2](#52-创建-openarm)–[§5.3](#53-vr-与采集-python-依赖)
 
-   > 子模块里的 `third_party/XRoboToolkit-PC-Service-Pybind/setup_ubuntu.sh` 默认执行 `conda install -c conda-forge ...`；若 conda-forge 慢或被墙，可临时去掉 `-c conda-forge` 改用默认 channel。
+   > 子模块里的 `third_party/XRoboToolkit-PC-Service-Pybind/setup_ubuntu.sh` 默认执行 `conda install -c conda-forge ...`；若 conda-forge 慢或被墙，可使用仓库保存的补丁改用默认 channel：在仓库根目录运行 `git -C third_party/XRoboToolkit-PC-Service-Pybind apply ../../patches/xrobotoolkit-default-conda-channel.patch`。先用相同命令加 `--check` 检查是否适用于当前子模块版本；已经改过的工作树不要重复应用。
 5. 安装 PICO 头显端 APK（仅 VR）→ [§5.4](#54-安装-pico-头显-apk)
 6. **编译工作空间**：`./openarm_ws/scripts/build.sh` → [§6](#6-构建与加载环境)
 7. 每次使用前加载环境：`source source_all.sh`

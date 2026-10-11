@@ -1,0 +1,20 @@
+diff --git a/setup_ubuntu.sh b/setup_ubuntu.sh
+index 327cc93..02696df 100644
+--- a/setup_ubuntu.sh
++++ b/setup_ubuntu.sh
+@@ -1,5 +1,5 @@
+ if [[ "$CONDA_DEFAULT_ENV" != "" ]]; then
+-    conda install -c conda-forge libstdcxx-ng -y
++    conda install libstdcxx-ng -y
+ fi
+ 
+ mkdir -p tmp
+@@ -18,7 +18,7 @@ cp tmp/XRoboToolkit-PC-Service/RoboticsService/PXREARobotSDK/build/libPXREARobot
+ 
+ # Build the project
+ if [[ "$CONDA_DEFAULT_ENV" != "" ]]; then
+-    conda install -c conda-forge pybind11 -y
++    conda install pybind11 -y
+ else
+     pip install pybind11 -y
+ fi
